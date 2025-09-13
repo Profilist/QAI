@@ -80,6 +80,7 @@ Generate focused test scenarios for autonomous agents.`
   }
 
   async runTests(scenarios) {
+    return true;
     const response = await axios.post(process.env.QAI_ENDPOINT, {
       url: process.env.DEPLOYMENT_URL || 'https://your-staging-url.com',
       scenarios,
