@@ -107,11 +107,8 @@ Generate focused test scenarios for autonomous agents.`
 
   updateCodebaseSummary() {
     try {
-      const summary = this.loadCodebaseSummary();
-      const entry = `\n=== ${new Date().toISOString()} ===\nPR #${this.prNumber} merged after QAI testing\n`;
-      const updated = (summary + entry).split('\n').slice(-500).join('\n'); // Keep last 500 lines
-      this.saveFile('codebase-summary.txt', updated, false);
-      console.log('✅ Summary updated');
+      const entry = `=== ${new Date().toISOString()} ===\nPR #${this.prNumber} merged after QAI testing`;
+      console.log('✅ Summary updated:', entry);
     } catch (error) {
       console.warn('Summary update failed:', error.message);
     }
