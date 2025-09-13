@@ -59,9 +59,10 @@ async def run_single_agent(spec: Dict[str, Any], run_dir: Path) -> Dict[str, Any
 
             # Open the browser before starting agent steps
             try:
-                await computer.interface.double_click(536, 742)
-                
+                await computer.interface.left_click(536, 742)
+                print(f"[{persona_slug}] opened browser successfully")
             except Exception:
+                print(f"[{persona_slug}] opened browser failed")
                 pass
 
             try:
