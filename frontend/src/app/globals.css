@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --off-background: #f6f6f6;
+
+  --foreground: #242424;
+  --off-foreground: #111111;
+
+  --outline: #d7d7d7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-off-background: var(--off-background);
+  --color-foreground: var(--foreground);
+  --color-off-foreground: var(--off-foreground);
+  --color-outline: var(--outline);
+
+  --font-heading: var(--font-dm-serif-display);
+  --font-content: var(--font-eb-garamond);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #242424;
+    --off-background: #111111;
+
+    --foreground: #ffffff;
+    --off-foreground: #fdfdfd;
+  }
+}
+
+@layer components {
+  .heading {
+    @apply font-heading text-off-foreground;
+  }
+
+  .card {
+    @apply border-outline border-[1px] bg-off-background;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+
+  font-family: var(--font-eb-garamond), "Times New Roman", serif;
+}
