@@ -1,17 +1,17 @@
 ## Product
+
 Autonomous agentic user tester
 
 - CALL VIA GITHUB ACTION
 - Integrated in a CI/CD pipeline
-    1. LLM gathers context about PR and codebase and determines what needs to be tested
-    2. We spin up a series of agents in parallel to test the website (maybe extend to mobile)
-        1. Agents have different personas representing potential users
-        2. Can have cross-agent interactions (maybe) for things like chat interfaces
-        3. Screen recording (maybe live streaming) agent actions that can be replayed
+  1. LLM gathers context about PR and codebase and determines what needs to be tested
+  2. We spin up a series of agents in parallel to test the website (maybe extend to mobile)
+     1. Agents have different personas representing potential users
+     2. Can have cross-agent interactions (maybe) for things like chat interfaces
+     3. Screen recording (maybe live streaming) agent actions that can be replayed
 - On our frontend Vercel-like dashboard (with all GitHub projects)
-    - we display the results of each agent, report of the bugs w/ replays of the interactions, suggested fixes (maybe)
-    - save AI-generated tests (to reuse in the future) or manually input tests (in natural language)
-
+  - we display the results of each agent, report of the bugs w/ replays of the interactions, suggested fixes (maybe)
+  - save AI-generated tests (to reuse in the future) or manually input tests (in natural language)
 
 ## Pitch/Purpose
 
@@ -26,10 +26,10 @@ User triggers the github action either manually or automatically. It runs the te
 ### Backend/AI
 
 - Cua (Docker for Computer-Use)
-    - Cloud or local (via Docker) computer-simulating containers
-        - Access to Sandbox python environment
-        - Access to computer actions like clicking, scrolling, keyboard, screenshot, clipboard
-    - Agent has access to computer
+  - Cloud or local (via Docker) computer-simulating containers
+    - Access to Sandbox python environment
+    - Access to computer actions like clicking, scrolling, keyboard, screenshot, clipboard
+  - Agent has access to computer
 - OmniParser?
 - GitHub Actions
 
@@ -40,20 +40,45 @@ User triggers the github action either manually or automatically. It runs the te
 
 ### Frontend
 
--
 
-Can you help me flush out the specifics, I'm building out the CI/CD pipeline right now, so can you help me setup the github actiosn, etc.
-So
-1) Github actions
-2) LLM combines a pregiven codebase summary (say a textfile) with the new changes from the PR into some sort of system prompt
-3) Through this, a series of testing things in a JSON are returned, and then that's POST to a random endpoint, where our agent will work (this is done by my hackathon teammate)
-4) And then it runs, and then the agent will return TRUE / FALSE, which will pass / fail the CI.
-5) Then if the changes pass, the CI will update the codebase summary by appending the new changes
+# TASK
+Look at the way @backend/cic/qai-pipeline.js connects with the database. 
+Essentially, we want to pass a suite + a series of tests to each agent in @backend/agents/runner.py
+@backend/agents/artifacts is what the agent returns right now, but integrate the current database flow into the agent's input and output bodies.
+Keep the print statements and console.logs.
+Rather than saving locally, please save everything to the database instead.
+For now, assume the agent is hosted (it's not, so the link won't work, but like assume everything passes e2e you know)
 
-Does this make sense?
-Can we start just brainstorming ideas, and how we'd set it up?
+#### SCHEMA
+CREATE TABLE public.results (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  pr-link text,
+  res-success boolean DEFAULT false,
+  pr-name text,
+  CONSTRAINT results_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.suites (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  suites-success boolean,
+  name text,
+  s3-link text,
+  result_id bigint,
+  CONSTRAINT suites_pkey PRIMARY KEY (id),
+  CONSTRAINT suites_result_id_fkey FOREIGN KEY (result_id) REFERENCES public.results(id)
+);
+CREATE TABLE public.tests (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  summary text,
+  test-success boolean,
+  name text,
+  suite_id bigint,
+  CONSTRAINT tests_pkey PRIMARY KEY (id),
+  CONSTRAINT tests_suite_id_fkey FOREIGN KEY (suite_id) REFERENCES public.suites(id)
+);
 
-I want to build it in JS (unless u think it's better to use py or something)
-in @backend/cicd
-What APIs do I need?
-Let's just get something started
+#### Flow
+Here's a general flow diagram, the CICD is done
+@flow.png

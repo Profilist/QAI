@@ -97,62 +97,141 @@ Generate focused test scenarios for autonomous agents.`
   async runTests(scenarios) {
     console.log(`🧪 Running ${scenarios.length} test scenarios...`);
     
+    // Create system prompt and options files for agents (as shown in flow diagram)
+    this.createAgentFiles(scenarios);
+    
     try {
-      const response = await axios.post(process.env.QAI_ENDPOINT, {
-        url: process.env.DEPLOYMENT_URL || 'https://your-staging-url.com',
-        scenarios,
-        timeout: parseInt(process.env.AGENT_TIMEOUT || '300000')
-      }, { timeout: 360000 });
-
-      console.log(`✅ Agent endpoint responded successfully`);
-      let results = response.data;
+      // Use our database-integrated agent runner instead of external endpoint
+      console.log(`🤖 Running tests through integrated agent system...`);
       
-      // Handle different response formats from the agent endpoint
-      if (!Array.isArray(results)) {
-        console.log(`⚠️ Agent endpoint returned non-array data, creating mock results`);
-        results = scenarios.map(scenario => ({
-          scenario,
-          success: true,
-          duration: 1000 + Math.random() * 2000,
-          actions: ['navigate', 'interact', 'verify']
-        }));
+      // Get the result_id from the database upload step
+      if (!this.resultId) {
+        throw new Error('No result_id available - database upload may have failed');
       }
+      
+      // Get suites for this result to run agents
+      const { data: suites } = await this.supabase
+        .from('suites')
+        .select('id, name')
+        .eq('result_id', this.resultId);
+      
+      if (!suites || suites.length === 0) {
+        throw new Error('No suites found for this result');
+      }
+      
+      console.log(`🏃 Running ${suites.length} agent suites...`);
+      
+      // Import and run our agent system for each suite
+      const { spawn } = require('child_process');
+      const path = require('path');
+      
+      const results = [];
+      
+      for (const suite of suites) {
+        console.log(`🤖 Running suite: ${suite.name} (ID: ${suite.id})`);
+        
+        try {
+          // Run Python agent runner with suite_id
+          const pythonProcess = spawn('python3', [
+            path.join(__dirname, '../agents/run_suite.py'),
+            suite.id.toString()
+          ], {
+            env: { 
+              ...process.env,
+              SUITE_ID: suite.id.toString(),
+              DEPLOYMENT_URL: process.env.DEPLOYMENT_URL || 'https://staging.example.com'
+            }
+          });
+          
+          let output = '';
+          let errorOutput = '';
+          
+          pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+            console.log(`[Suite ${suite.id}] ${data.toString().trim()}`);
+          });
+          
+          pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+            console.error(`[Suite ${suite.id} ERROR] ${data.toString().trim()}`);
+          });
+          
+          await new Promise((resolve, reject) => {
+            pythonProcess.on('close', (code) => {
+              if (code === 0) {
+                resolve();
+              } else {
+                reject(new Error(`Agent process exited with code ${code}: ${errorOutput}`));
+              }
+            });
+            
+            pythonProcess.on('error', (error) => {
+              reject(new Error(`Failed to start agent process: ${error.message}`));
+            });
+            
+            // Set timeout for agent execution
+            setTimeout(() => {
+              pythonProcess.kill();
+              reject(new Error('Agent execution timed out'));
+            }, parseInt(process.env.AGENT_TIMEOUT || '600000'));
+          });
+          
+          // Parse agent result from output (agents save to database)
+          results.push({
+            suite_id: suite.id,
+            suite_name: suite.name,
+            success: true,
+            output: output
+          });
+          
+        } catch (error) {
+          console.error(`❌ Suite ${suite.id} failed: ${error.message}`);
+          results.push({
+            suite_id: suite.id,
+            suite_name: suite.name,
+            success: false,
+            error: error.message
+          });
+        }
+      }
+      
+      console.log(`✅ Completed ${results.length} agent suite runs`);
+      let results_legacy = results;
       
       this.saveFile('test-results.json', results);
 
       const passed = results.filter(r => r.success).length;
       const failed = results.length - passed;
       
-      console.log(`📊 Test Results: ${passed}/${results.length} passed`);
+      console.log(`📊 Test Results: ${passed}/${results.length} suites passed`);
       
       if (failed > 0) {
-        console.log(`❌ Failed tests:`);
-        results.filter(r => !r.success).forEach(test => {
-          console.log(`   • ${test.scenario.description}: ${test.error || 'Failed'}`);
+        console.log(`❌ Failed suites:`);
+        results.filter(r => !r.success).forEach(result => {
+          console.log(`   • ${result.suite_name}: ${result.error || 'Failed'}`);
         });
       }
 
-      console.log(`💾 Updating database with results...`);
-      await this.updateTestResults(results);
-
-      console.log(`::set-output name=success::${failed === 0}`);
-      return failed === 0;
+      console.log(`💾 Database results already updated by agent system`);
+      
+      // Verify final database state
+      const finalSuccess = await this.verifyFinalResults();
+      
+      console.log(`::set-output name=success::${finalSuccess}`);
+      const finalSuccess = await this.verifyFinalResults();
+      return finalSuccess;
     } catch (error) {
-      console.error(`❌ Test execution failed: ${error.message}`);
-      console.log(`⚠️ Using mock results for CI testing purposes`);
+      console.error(`❌ Agent execution failed: ${error.message}`);
       
-      // For now, simulate results so CI doesn't fail
-      const mockResults = scenarios.map(scenario => ({
-        scenario,
-        success: true,
-        duration: 1000 + Math.random() * 2000,
-        actions: ['navigate', 'interact', 'verify']
-      }));
+      // Update database with failure status
+      if (this.resultId) {
+        await this.supabase
+          .from('results')
+          .update({ 'res-success': false })
+          .eq('id', this.resultId);
+      }
       
-      this.saveFile('test-results.json', mockResults);
-      await this.updateTestResults(mockResults);
-      
-      return true;
+      return false;
     }
   }
 
@@ -294,6 +373,88 @@ Generate focused test scenarios for autonomous agents.`
     }
   }
 
+  createAgentFiles(scenarios) {
+    console.log(`📝 Creating agent configuration files...`);
+    
+    // Create system-prompt.txt (as shown in flow diagram)
+    const systemPrompt = `You are an autonomous QA testing agent. Your role is to thoroughly test web applications for bugs, usability issues, and functionality problems.
+
+Your testing approach should be:
+1. Methodical and comprehensive
+2. Focus on finding unexpected issues and edge cases
+3. Test both happy paths and error conditions
+4. Document findings clearly with screenshots
+5. Be creative in exploring the application
+
+You have access to:
+- Screenshot capabilities for documentation
+- Full browser interaction (clicking, typing, navigation)
+- Form submission and validation testing
+- UI/UX evaluation capabilities
+
+Your goal is to identify bugs and issues that human testers might miss through autonomous exploration and testing.`;
+    
+    this.saveFile('system-prompt.txt', systemPrompt, false);
+    
+    // Create options.json (as shown in flow diagram)
+    const options = {
+      "id": "agent_" + Date.now(),
+      "thinking": "enabled", 
+      "persona": "qa_tester",
+      "timeout": parseInt(process.env.AGENT_TIMEOUT || '600000'),
+      "deployment_url": process.env.DEPLOYMENT_URL || 'https://staging.example.com',
+      "max_budget": 10.0,
+      "screenshot_frequency": "high"
+    };
+    
+    this.saveFile('options.json', options);
+    
+    // Create test-cases.json in the format expected by agents
+    const testCases = {
+      "suites": scenarios.map((scenario, index) => ({
+        "id": `suite_${index + 1}`,
+        "name": `${scenario.persona} - ${scenario.type} testing`,
+        "description": scenario.description,
+        "priority": scenario.priority,
+        "type": scenario.type,
+        "steps": scenario.steps
+      }))
+    };
+    
+    this.saveFile('test-cases.json', testCases);
+    
+    console.log(`✅ Created agent configuration files: system-prompt.txt, options.json, test-cases.json`);
+  }
+
+  async verifyFinalResults() {
+    try {
+      // Get final status from database
+      const { data: result } = await this.supabase
+        .from('results')
+        .select('*, suites(*, tests(*))')
+        .eq('id', this.resultId)
+        .single();
+      
+      if (result) {
+        const totalSuites = result.suites?.length || 0;
+        const passedSuites = result.suites?.filter(s => s['suites-success'] === true).length || 0;
+        const totalTests = result.suites?.reduce((acc, s) => acc + (s.tests?.length || 0), 0) || 0;
+        const passedTests = result.suites?.reduce((acc, s) => 
+          acc + (s.tests?.filter(t => t['test-success'] === true).length || 0), 0) || 0;
+        
+        console.log(`📊 Final Results Summary:`);
+        console.log(`   • Overall Success: ${result['res-success'] ? '✅' : '❌'}`);
+        console.log(`   • Suites: ${passedSuites}/${totalSuites} passed`);
+        console.log(`   • Tests: ${passedTests}/${totalTests} passed`);
+        
+        return result['res-success'];
+      }
+    } catch (error) {
+      console.error(`❌ Failed to verify results: ${error.message}`);
+      return false;
+    }
+  }
+
   updateCodebaseSummary() {
     try {
       const summary = this.loadCodebaseSummary();
@@ -377,3 +538,5 @@ async function main() {
 }
 
 if (require.main === module) main();
+
+module.exports = { QAIPipeline };
