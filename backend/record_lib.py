@@ -104,7 +104,7 @@ def start_recording(output_dir=None, fps=None, width=None, height=None, display=
         return {"ok": False, "error": repr(e)}
 
 
-def stop_recording():
+def stop_recording(upload_url=None):
     """Stop ffmpeg recording using the persisted PID.
 
     Returns a dict with { ok, path }.
@@ -150,14 +150,19 @@ def stop_recording():
             state_path.write_text(_json.dumps({}), encoding="utf-8")
         except Exception:
             pass
-        # Try upload to local server
+        # Try upload to server
         upload = {"ok": False}
         try:
             import urllib.request as _urlreq
             import uuid as _uuid
             import os as _os
 
-            if path and _os.path.exists(path):
+            # Determine upload URL: param overrides env, skip if none
+            _url = upload_url
+            if not _url:
+                _url = _os.getenv("VIDEO_UPLOAD_URL")
+
+            if path and _os.path.exists(path) and _url:
                 boundary = f"----WebKitFormBoundary{_uuid.uuid4().hex}"
                 CRLF = "\r\n"
                 # Build multipart body
@@ -174,7 +179,7 @@ def stop_recording():
                 body = body_prefix + file_bytes + body_suffix
 
                 req = _urlreq.Request(
-                    url="http://localhost:3000/upload-video",
+                    url=_url,
                     data=body,
                     method="POST",
                     headers={

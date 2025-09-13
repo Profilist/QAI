@@ -10,17 +10,54 @@ def main() -> None:
 
     specs = [
         {
-            "persona": "agent",
+            "persona": "navigation",
             "container_name": os.getenv("CUA_CONTAINER_NAME"),
-            "instructions": [
-                {"role": "user", "content": "Open the browser, go to https://google.com, describe the page."}
+            "suite": "navigation",
+            "tests": [
+                {
+                    "name": "admissions-header",
+                    "instructions": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Go to https://uwaterloo.ca. "
+                                "Click the header link labeled \"Admissions\". "
+                                "Confirm that the page you land on is related to Admissions."
+                            ),
+                        }
+                    ],
+                },
+                {
+                    "name": "about-header",
+                    "instructions": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "On https://uwaterloo.ca, click the header link labeled \"About Waterloo\". "
+                                "Confirm you navigated to an About page."
+                            ),
+                        }
+                    ],
+                },
             ],
         },
         {
-            "persona": "agent2",
-            "container_name": os.getenv("CUA_CONTAINER_NAME2"),
-            "instructions": [
-                {"role": "user", "content": "Open https://www.github.com, describe the page."}
+            "persona": "events",
+            "container_name": os.getenv("CUA_CONTAINER_NAME2") or os.getenv("CUA_CONTAINER_NAME"),
+            "suite": "events",
+            "tests": [
+                {
+                    "name": "first-event",
+                    "instructions": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Go to https://uwaterloo.ca. Scroll down to the Events section. "
+                                "Click the first event shown and confirm you navigated to the event details."
+                            ),
+                        }
+                    ],
+                }
             ],
         },
     ]
