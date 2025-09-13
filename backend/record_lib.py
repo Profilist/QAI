@@ -150,7 +150,49 @@ def stop_recording():
             state_path.write_text(_json.dumps({}), encoding="utf-8")
         except Exception:
             pass
-        return {"ok": True, "path": path}
+        # Try upload to local server
+        upload = {"ok": False}
+        try:
+            import urllib.request as _urlreq
+            import uuid as _uuid
+            import os as _os
+
+            if path and _os.path.exists(path):
+                boundary = f"----WebKitFormBoundary{_uuid.uuid4().hex}"
+                CRLF = "\r\n"
+                # Build multipart body
+                with open(path, "rb") as f:
+                    file_bytes = f.read()
+                parts = []
+                parts.append(f"--{boundary}{CRLF}")
+                parts.append(
+                    "Content-Disposition: form-data; name=\"video\"; filename=\"" + _os.path.basename(path) + "\"" + CRLF
+                )
+                parts.append("Content-Type: video/mp4" + CRLF + CRLF)
+                body_prefix = ("".join(parts)).encode("utf-8")
+                body_suffix = (CRLF + f"--{boundary}--{CRLF}").encode("utf-8")
+                body = body_prefix + file_bytes + body_suffix
+
+                req = _urlreq.Request(
+                    url="http://localhost:3000/upload-video",
+                    data=body,
+                    method="POST",
+                    headers={
+                        "Content-Type": f"multipart/form-data; boundary={boundary}",
+                        "Content-Length": str(len(body)),
+                    },
+                )
+                with _urlreq.urlopen(req, timeout=30) as resp:
+                    resp_body = resp.read().decode("utf-8", errors="ignore")
+                    try:
+                        upload_json = _json.loads(resp_body)
+                    except Exception:
+                        upload_json = {"raw": resp_body}
+                    upload = {"ok": True, "response": upload_json}
+        except Exception as _e:
+            upload = {"ok": False, "error": repr(_e)}
+
+        return {"ok": True, "path": path, "upload": upload}
     except Exception as e:
         return {"ok": False, "error": repr(e)}
 
