@@ -11,6 +11,7 @@ test-summary.json
 
 # Logs
 *.log
+
 npm-debug.log*
 
 .venv

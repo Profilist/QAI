@@ -1,0 +1,20 @@
+{
+  "name": "qai-cicd",
+  "version": "1.0.0",
+  "description": "QAI CI/CD pipeline for autonomous testing",
+  "main": "index.js",
+  "scripts": {
+    "analyze": "node qai-pipeline.js analyze",
+    "test": "node qai-pipeline.js test",
+    "update": "node qai-pipeline.js update",
+    "pipeline": "node qai-pipeline.js full"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "openai": "^4.28.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.1"
+  },
+  "author": "",
+  "license": "ISC"
+}
