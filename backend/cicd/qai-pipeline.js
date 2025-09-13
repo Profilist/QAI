@@ -177,7 +177,7 @@ Generate focused test scenarios for autonomous agents.`
 
       // Create suite records
       for (const [persona, personaScenarios] of Object.entries(personaGroups)) {
-        const suiteData = {
+        const suiteRecord = {
           id: this.resultId,
           name: `${persona} Agent Suite`,
           'suites-success': null // Will be updated after tests
@@ -185,7 +185,7 @@ Generate focused test scenarios for autonomous agents.`
 
         const { data: suiteData, error: suiteError } = await this.supabase
           .from('suites')
-          .insert([suiteData])
+          .insert([suiteRecord])
           .select('id')
           .single();
 
