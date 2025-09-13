@@ -34,3 +34,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         QAI_ENDPOINT: ${{ secrets.QAI_ENDPOINT }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        DEPLOYMENT_URL: ${{ secrets.DEPLOYMENT_URL }}
+        AGENT_TIMEOUT: ${{ secrets.AGENT_TIMEOUT }}
