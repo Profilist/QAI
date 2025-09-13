@@ -7,14 +7,22 @@
   --foreground: #242424;
   --off-foreground: #111111;
 
+  --accent: #A480CF;
+  --off-accent: #b497d8;
+
   --outline: #d7d7d7;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-off-background: var(--off-background);
+
   --color-foreground: var(--foreground);
   --color-off-foreground: var(--off-foreground);
+
+  --color-accent: var(--accent);
+  --color-off-accent: var(--off-accent);
+
   --color-outline: var(--outline);
 
   --font-heading: var(--font-dm-serif-display);

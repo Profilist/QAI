@@ -1,26 +1,23 @@
-import List from "@/lib/components/content/list/List";
 import PageContent from "@/lib/components/content/PageContent";
+import Content from "./Content";
+
+export type TestSuite = {
+  id: string;
+  title: string;
+  description: string;
+};
+
+const testSuites: TestSuite[] = [
+  { id: "0", title: "Authentication", description: "User login, logout, and authentication flows" },
+  { id: "1", title: "Search, Sorting, and Filtering", description: "Product search and filtering functionality" },
+  { id: "2", title: "Checkout", description: "Shopping cart and payment processing" },
+  { id: "3", title: "Update Profile", description: "User profile management and settings" },
+];
 
 export default function Page() {
   return (
     <PageContent title="Test suites" breadcrumb="Actions/Test suites">
-      <div className="flex flex-row h-full gap-6">
-        <List className="grow basis-0">
-          <a href="/test-suites/0">
-            <List.Item>Authentication</List.Item>
-          </a>
-          <a href="/test-suites/1">
-            <List.Item>Search, Sorting, and Filtering</List.Item>
-          </a>
-          <a href="/test-suites/2">
-            <List.Item>Checkout</List.Item>
-          </a>
-          <a href="/test-suites/3">
-            <List.Item>Update Profile</List.Item>
-          </a>
-        </List>
-        <div className="grow basis-0 mb-6 card"></div>
-      </div>
+      <Content testSuites={testSuites}/>
     </PageContent>
   );
 }
