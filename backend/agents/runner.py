@@ -79,7 +79,7 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if create_client and SUPABASE_URL and SUPABASE_KEY else None
 
 
-async def run_single_agent(spec: Dict[str, Any], run_dir: Path) -> Dict[str, Any]:
+async def run_single_agent(spec: Dict[str, Any], run_dir: Path, suite_id: Optional[int] = None) -> Dict[str, Any]:
 	persona = spec.get("persona") or "agent"
 	persona_slug = slugify(str(persona))
 	# TODO: dynamically route to the appropriate model
@@ -94,21 +94,6 @@ async def run_single_agent(spec: Dict[str, Any], run_dir: Path) -> Dict[str, Any
 		raise RuntimeError("CUA_API_KEY is required")
 	if not container_name:
 		raise RuntimeError("CUA_CONTAINER_NAME is required")
-async def run_single_agent(spec: Dict[str, Any], run_dir: Path, suite_id: Optional[int] = None) -> Dict[str, Any]:
-    persona = spec.get("persona") or "agent"
-    persona_slug = slugify(str(persona))
-    # TODO: dynamically route to the appropriate model
-    model = spec.get("model") or os.getenv("CUA_MODEL", "anthropic/claude-3-5-sonnet-20241022")
-    budget = spec.get("budget", 5.0)
-    max_duration_sec: Optional[float] = spec.get("max_duration_sec")
-    os_type = "linux"
-    provider_type = "cloud"
-    container_name = spec.get("container_name") or os.getenv("CUA_CONTAINER_NAME")
-    api_key = os.getenv("CUA_API_KEY")
-    if not api_key:
-        raise RuntimeError("CUA_API_KEY is required")
-    if not container_name:
-        raise RuntimeError("CUA_CONTAINER_NAME is required")
 
 	# Tests: use explicit tests list or fallback to single test from top-level instructions/messages
 	tests = normalize_tests(spec)
@@ -220,26 +205,25 @@ async def run_single_agent(spec: Dict[str, Any], run_dir: Path, suite_id: Option
 							print(f"[{persona_slug}] recording stopped for {test_name}: {rec_stop}")
 						except Exception as _e:
 							print(f"[{persona_slug}] recording stop failed for {test_name}: {_e}")
-
-		result = {
-			"persona": persona,
-			"persona_slug": persona_slug,
-			"model": model,
-			"container_name": container_name,
-			"trajectory_dir": str(agent_dir),
-			"status": status,
-			"error": error,
-			"texts": texts,
-			"steps": steps,
-			"usage": usage_snapshots,
-            "suite_id": suite_id,
-		}
-        
-        # Save results to database if available
-        if supabase and suite_id:
-            await save_agent_results_to_db(result, suite_id)
-            
-        return result
+					result = {
+						"persona": persona,
+						"persona_slug": persona_slug,
+						"model": model,
+						"container_name": container_name,
+						"trajectory_dir": str(agent_dir),
+						"status": status,
+						"error": error,
+						"texts": texts,
+						"steps": steps,
+						"usage": usage_snapshots,
+						"suite_id": suite_id,
+					}
+					
+					# Save results to database if available
+					if supabase and suite_id:
+						await save_agent_results_to_db(result, suite_id)
+					
+					return result
 
 	if max_duration_sec and max_duration_sec > 0:
 		return await asyncio.wait_for(_execute(), timeout=float(max_duration_sec))
@@ -396,27 +380,27 @@ async def run_agents_from_db(suite_id: int) -> Dict[str, Any]:
     return summary
 
 
-async def run_agents(test_specs: List[Dict[str, Any]]) -> Dict[str, Any]:
+async def run_agents(test_specs: List[Dict[str, Any]], suite_id: Optional[int] = None) -> Dict[str, Any]:
     run_id = short_id()
     started_at = utc_now_iso()
     artifacts_dir = ARTIFACTS_ROOT
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-	tasks = [run_single_agent(spec, artifacts_dir) for spec in test_specs]
-	results: List[Dict[str, Any]] = await asyncio.gather(*tasks, return_exceptions=True)
+    tasks = [run_single_agent(spec, artifacts_dir, suite_id) for spec in test_specs]
+    results: List[Dict[str, Any]] = await asyncio.gather(*tasks, return_exceptions=True)
 
-	agents: List[Dict[str, Any]] = []
-	for spec, res in zip(test_specs, results):
-		if isinstance(res, Exception):
-			agents.append({
-				"persona": spec.get("persona") or "agent",
-				"status": "error",
-				"error": repr(res),
-			})
-		else:
-			agents.append(res)
+    agents: List[Dict[str, Any]] = []
+    for spec, res in zip(test_specs, results):
+        if isinstance(res, Exception):
+            agents.append({
+                "persona": spec.get("persona") or "agent",
+                "status": "error",
+                "error": repr(res),
+                })
+        else:
+            agents.append(res)
 
-	summary = {
+    summary = {
 		"run_id": run_id,
 		"started_at": started_at,
 		"finished_at": utc_now_iso(),
@@ -425,15 +409,15 @@ async def run_agents(test_specs: List[Dict[str, Any]]) -> Dict[str, Any]:
 		"agents": agents,
 	}
 
-	output_path = os.getenv("CUA_OUTPUT_PATH") or str(artifacts_dir / "summary.json")
-	try:
-		with open(output_path, "w", encoding="utf-8") as f:
-			json.dump(summary, f, indent=2)
-	except Exception:
-		pass
+    output_path = os.getenv("CUA_OUTPUT_PATH") or str(artifacts_dir / "summary.json")
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+    except Exception:
+        pass
 
-	print(json.dumps(summary))
-	return summary
+    print(json.dumps(summary))
+    return summary
 
 
 # Main entry point that can handle both old format (test_specs) and new format (suite_id)
@@ -444,7 +428,7 @@ async def run_qai_tests(suite_id: Optional[int] = None, test_specs: Optional[Lis
         return await run_agents_from_db(suite_id)
     elif test_specs is not None:
         print(f"📝 Running tests from provided specs (legacy mode)")
-        return await run_agents(test_specs)
+        return await run_agents(test_specs, suite_id)
     else:
         raise ValueError("Either suite_id or test_specs must be provided")
 
