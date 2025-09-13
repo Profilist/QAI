@@ -75,7 +75,8 @@ Generate focused test scenarios for autonomous agents.`
 
     const scenarios = completion.choices[0].message.parsed.scenarios;
     this.saveFile('test-scenarios.json', scenarios);
-    console.log(`Generated ${scenarios.length} test scenarios`);
+    console.log(`Generated ${scenarios.length} test scenarios:`);
+    console.log(JSON.stringify(scenarios, null, 2));
     return scenarios;
   }
 
