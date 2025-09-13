@@ -1,22 +1,99 @@
 @import "tailwindcss";
 
 :root {
+  /* Primary Colors */
   --background: #ffffff;
   --off-background: #f6f6f6;
-
   --foreground: #242424;
   --off-foreground: #111111;
-
   --outline: #d7d7d7;
+
+  /* Gray Scale - 5 Colors Only */
+  --gray-light: #f9f9f9;    /* Lightest gray */
+  --gray-medium: #808080;   /* Medium gray */
+  --gray-dark: #676767;     /* Dark gray */
+  --gray-darker: #525252;   /* Darker gray */
+  --gray-darkest: #A9A9A9;  /* Darkest gray */
+
+  /* Sidebar Colors */
+  --sidebar-bg: var(--gray-darker);
+  --sidebar-text: var(--gray-medium);
+  --sidebar-text-hover: var(--gray-light);
+  --sidebar-text-active: var(--gray-light);
+  --sidebar-bg-hover: var(--gray-dark);
+  --sidebar-border: var(--gray-dark);
+
+  /* Breadcrumb Colors */
+  --breadcrumb-bg: var(--gray-light);
+  --breadcrumb-border: var(--gray-medium);
+  --breadcrumb-text: var(--gray-dark);
+  --breadcrumb-text-hover: var(--gray-darker);
+  --breadcrumb-text-active: var(--gray-darker);
+
+  /* Button Colors */
+  --btn-primary: var(--gray-dark);
+  --btn-primary-hover: var(--gray-darker);
+  --btn-secondary: var(--gray-medium);
+  --btn-secondary-hover: var(--gray-dark);
+
+  /* Card Colors */
+  --card-bg: var(--gray-light);
+  --card-border: var(--gray-medium);
+  --card-hover: var(--gray-medium);
+
+  /* Text Colors */
+  --text-primary: var(--gray-darker);
+  --text-secondary: var(--gray-dark);
+  --text-muted: var(--gray-medium);
 }
 
 @theme inline {
+  /* Primary Colors */
   --color-background: var(--background);
   --color-off-background: var(--off-background);
   --color-foreground: var(--foreground);
   --color-off-foreground: var(--off-foreground);
   --color-outline: var(--outline);
 
+  /* Gray Scale - 5 Colors Only */
+  --color-gray-light: var(--gray-light);
+  --color-gray-medium: var(--gray-medium);
+  --color-gray-dark: var(--gray-dark);
+  --color-gray-darker: var(--gray-darker);
+  --color-gray-darkest: var(--gray-darkest);
+
+  /* Sidebar Colors */
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-hover: var(--sidebar-text-hover);
+  --color-sidebar-text-active: var(--sidebar-text-active);
+  --color-sidebar-bg-hover: var(--sidebar-bg-hover);
+  --color-sidebar-border: var(--sidebar-border);
+
+  /* Breadcrumb Colors */
+  --color-breadcrumb-bg: var(--breadcrumb-bg);
+  --color-breadcrumb-border: var(--breadcrumb-border);
+  --color-breadcrumb-text: var(--breadcrumb-text);
+  --color-breadcrumb-text-hover: var(--breadcrumb-text-hover);
+  --color-breadcrumb-text-active: var(--breadcrumb-text-active);
+
+  /* Button Colors */
+  --color-btn-primary: var(--btn-primary);
+  --color-btn-primary-hover: var(--btn-primary-hover);
+  --color-btn-secondary: var(--btn-secondary);
+  --color-btn-secondary-hover: var(--btn-secondary-hover);
+
+  /* Card Colors */
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --color-card-hover: var(--card-hover);
+
+  /* Text Colors */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* Fonts */
   --font-heading: var(--font-dm-serif-display);
   --font-content: var(--font-eb-garamond);
 }
