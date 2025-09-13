@@ -18,38 +18,19 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'backend/cicd/package-lock.json'
 
     - name: Install dependencies
       run: |
         cd backend/cicd
         npm install
 
-    - name: Analyze PR changes
-      id: analyze
+    - name: Run QAI Pipeline
       run: |
         cd backend/cicd
-        node analyze-pr.js
+        npm run pipeline
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         QAI_ENDPOINT: ${{ secrets.QAI_ENDPOINT }}
-
-    - name: Run QAI tests
-      id: test
-      run: |
-        cd backend/cicd
-        node run-tests.js
-      env:
-        QAI_ENDPOINT: ${{ secrets.QAI_ENDPOINT }}
-
-    - name: Update codebase summary
-      if: steps.test.outputs.success == 'true'
-      run: |
-        cd backend/cicd
-        node update-summary.js
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Fail if tests failed
-      if: steps.test.outputs.success != 'true'
-      run: exit 1
