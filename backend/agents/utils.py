@@ -16,19 +16,6 @@ def short_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
-def build_system_instructions(persona: str | None) -> str:
-    persona_text = f"You are {persona}." if persona else "You are a meticulous QA tester."
-    return (
-        f"{persona_text} "
-        "The browser is already open. "
-        "Act like a real end user for this persona. "
-        "Follow the user's instructions step-by-step, using the computer tools when needed. "
-        "If you want to click at the current cursor position, use the 'left_click' action and leave out the coordinates (doing 0,0 will click at the top left corner, not the current cursor position)."
-        "DO NOT DO action: {'button': 'left', 'type': 'click', 'x': 0, 'y': 0}, leave out the coordinates."
-        "Be concise, avoid hallucinations, and surface any errors encountered."
-    )
-
-
 def normalize_tests(spec: dict) -> list[dict]:
     tests = spec.get("tests")
     if isinstance(tests, list) and tests:
@@ -44,8 +31,48 @@ def normalize_tests(spec: dict) -> list[dict]:
     return [{"name": str(suite_name), "messages": messages}]
 
 
-def make_remote_recording_dir(persona_slug: str, test_name: str) -> str:
+def make_remote_recording_dir(suite_id: str, test_name: str) -> str:
     test_slug = slugify(str(test_name))
     # Use a user-writable base path by default
-    return f"/tmp/replays/{persona_slug}/{test_slug}"
+    return f"/tmp/replays/{suite_id}/{test_slug}"
 
+
+def process_item(item: dict, suite_id: str, test_agent_steps: list[dict]) -> dict:
+    item_type = item.get("type")
+                            
+    if item_type == "message":
+        try:
+            content = item.get("content") or []
+            for block in content:
+                if isinstance(block, dict) and block.get("text"):
+                    print(f"[Agent {suite_id}] message: {block['text']}")
+                    test_agent_steps.append(block["text"])
+        except Exception:
+            pass
+    
+    elif item_type in ("computer_call", "computer_call_output", "function_call", "function_call_output"):
+        pruned = dict(item)
+        if pruned.get("type") == "computer_call_output":
+            output = pruned.get("output", {})
+            if isinstance(output, dict) and "image_url" in output:
+                output = dict(output)
+                output["image_url"] = "[omitted]"
+                pruned["output"] = output
+                print(f"[Agent {suite_id}] computer_call_output: screenshot captured")
+            
+        elif pruned.get("type") == "computer_call":
+            action = pruned.get("action", {}) or {}
+            a_type = action.get("type", "unknown")
+            a_args = {k: v for k, v in action.items() if k != "type"}
+            print(f"[Agent {suite_id}] computer_call: {a_type}({a_args})")
+            
+        elif pruned.get("type") == "function_call":
+            fname = pruned.get("name", "<anon>")
+            print(f"[Agent {suite_id}] function_call: {fname}")
+            
+        elif pruned.get("type") == "function_call_output":
+            print(f"[Agent {suite_id}] function_call_output: received")
+            
+        test_agent_steps.append(pruned)
+            
+    return test_agent_steps
