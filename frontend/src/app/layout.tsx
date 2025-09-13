@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, EB_Garamond } from "next/font/google";
 import "./globals.css";
+import 'remixicon/fonts/remixicon.css'
 
 const dmSerifDisplay = DM_Serif_Display({
   variable: "--font-dm-serif-display",

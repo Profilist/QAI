@@ -24,37 +24,24 @@ export default function Page({ params }: PageProps) {
   
   if (!suite) {
     return (
-      <PageContent title="Test Suite Not Found">
+      <PageContent title="Test Suite Not Found" breadcrumb="">
         <div className="flex items-center justify-center h-full">
-          <p style={{ color: 'var(--gray-medium)' }}>
             The requested test suite could not be found.
-          </p>
         </div>
       </PageContent>
     );
   }
 
   return (
-    <PageContent title={suite.name}>
-      <div className="flex flex-row h-full gap-6">
-        <List className="grow basis-0">
-          {suite.tests.map((test, index) => (
-            <List.Item 
-              key={index} 
-              className="cursor-pointer transition-colors duration-200"
-              style={{ color: 'var(--gray-darker)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--gray-medium)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              {test}
-            </List.Item>
-          ))}
+    <PageContent title={suite.name} breadcrumb={`Actions/Test suites/${suite.name}`}>
+      <div className="grid grid-cols-2 h-full gap-6">
+        <List>
+          <List.Item>Log in with username and password</List.Item>
+          <List.Item>Log in with empty password</List.Item>
+          <List.Item>Forgot password</List.Item>
+          <List.Item>Log out</List.Item>
         </List>
-        <div className="grow basis-0 mb-6 flex flex-col gap-4">
+        <div className="mb-6 flex flex-col gap-4">
             {/* Video */}
           <div className="card aspect-video">
             <video>
