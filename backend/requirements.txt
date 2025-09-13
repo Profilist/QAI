@@ -1,0 +1,2 @@
+cua-agent>=0.4.31
+cua-computer>=0.4.5

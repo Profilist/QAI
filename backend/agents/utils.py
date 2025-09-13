@@ -28,3 +28,24 @@ def build_system_instructions(persona: str | None) -> str:
         "Be concise, avoid hallucinations, and surface any errors encountered."
     )
 
+
+def normalize_tests(spec: dict) -> list[dict]:
+    tests = spec.get("tests")
+    if isinstance(tests, list) and tests:
+        normalized = []
+        for idx, t in enumerate(tests):
+            name = t.get("name") or f"test-{idx+1}"
+            messages = t.get("instructions") or t.get("messages") or []
+            normalized.append({"name": name, "messages": messages})
+        return normalized
+    # Fallback: single test using top-level instructions/messages
+    messages = spec.get("instructions") or spec.get("messages") or []
+    suite_name = spec.get("suite") or spec.get("suite_name") or "default"
+    return [{"name": str(suite_name), "messages": messages}]
+
+
+def make_remote_recording_dir(persona_slug: str, test_name: str) -> str:
+    test_slug = slugify(str(test_name))
+    # Use a user-writable base path by default
+    return f"/tmp/replays/{persona_slug}/{test_slug}"
+

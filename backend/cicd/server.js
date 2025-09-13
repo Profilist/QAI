@@ -270,11 +270,14 @@ app.get('/suites/:id/tests', async (req, res) => {
 // S3 Video Upload Endpoint
 app.post('/upload-video', upload.single('video'), async (req, res) => {
   try {
+    console.log('Uploading video');
+    console.log(req.file);
     if (!req.file) {
       return res.status(400).json({ error: 'No video file provided' });
     }
 
     const fileName = `video_${Date.now()}_${req.file.originalname}`;
+    console.log(fileName);
     
     const uploadParams = {
       Bucket: process.env.S3_BUCKET_NAME,
@@ -285,8 +288,10 @@ app.post('/upload-video', upload.single('video'), async (req, res) => {
 
     const command = new PutObjectCommand(uploadParams);
     await s3Client.send(command);
+    console.log('Video uploaded to S3');
 
     const fileUrl = `https://${process.env.S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    console.log(fileUrl);
 
     res.json({
       success: true,

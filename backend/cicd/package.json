@@ -10,11 +10,14 @@
     "pipeline": "node qai-pipeline.js full"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.888.0",
     "@octokit/rest": "^20.0.2",
-    "openai": "^4.28.0",
+    "@supabase/supabase-js": "^2.39.0",
     "axios": "^1.6.7",
     "dotenv": "^16.4.1",
-    "@supabase/supabase-js": "^2.39.0"
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "openai": "^4.28.0"
   },
   "author": "",
   "license": "ISC"
