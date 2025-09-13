@@ -1,0 +1,14 @@
+# Environment variables
+.env
+
+# Dependencies
+node_modules/
+
+# Generated test files
+test-scenarios.json
+test-results.json
+test-summary.json
+
+# Logs
+*.log
+npm-debug.log*
