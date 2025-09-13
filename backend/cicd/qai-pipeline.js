@@ -4,7 +4,7 @@ const OpenAI = require('openai');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 class QAIPipeline {
   constructor() {
