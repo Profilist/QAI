@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .utils import slugify, utc_now_iso, short_id, build_system_instructions
+from .replay import ReplayRecorderCallback
 
 # TODO: Replace with DB storage in the future
 ARTIFACTS_ROOT = Path(__file__).parent.parent / "artifacts"
@@ -49,12 +50,15 @@ async def run_single_agent(spec: Dict[str, Any], run_dir: Path) -> Dict[str, Any
             name=container_name,
             api_key=api_key
         ) as computer:
+            callbacks = [ReplayRecorderCallback(str(agent_dir))]
+            
             agent = ComputerAgent(
                 model=model,
                 tools=[computer],
                 trajectory_dir=str(agent_dir),
                 max_trajectory_budget=budget,
                 instructions=build_system_instructions(persona),
+                callbacks=callbacks,
             )
 
             # Open the browser before starting agent steps
