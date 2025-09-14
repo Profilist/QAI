@@ -21,7 +21,8 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'backend/cicd/package-lock.json'
 
-    - name: Install dependencies
+
+    - name: Install Node dependencies
       run: |
         cd backend/cicd
         npm install
