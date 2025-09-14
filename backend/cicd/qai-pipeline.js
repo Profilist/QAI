@@ -15,12 +15,6 @@ class QAIPipeline {
     this.prNumber = this.getPRNumber();
     this.repo = process.env.GITHUB_REPOSITORY?.split('/') || [];
     this.runId = `run_${Date.now()}_pr${this.prNumber}`;
-    this.runDir = path.join(__dirname, '../artifacts/agent', this.runId);
-    try {
-      fs.mkdirSync(this.runDir, { recursive: true });
-    } catch (e) {
-      console.warn(`Could not create artifacts dir ${this.runDir}: ${e.message}`);
-    }
     console.log(`🚀 Initializing QAI Pipeline - Run ID: ${this.runId}`);
   }
 
@@ -118,7 +112,8 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
     
     try {
       // Use QAI API endpoint instead of running agents locally
-      console.log(`🤖 Running tests through QAI API endpoint...`);
+        console.log(`🤖 Running tests through QAI API endpoint...`);
+        console.log("QAI_ENDPOINT:", process.env.QAI_ENDPOINT);
       
       // Check if QAI_ENDPOINT is configured
       if (!process.env.QAI_ENDPOINT) {
@@ -141,16 +136,15 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
           headers: { 'Content-Type': 'application/json' }
         }
       );
+      console.log("Response:", response);
 
       if (response.data?.status !== 'success') {
         throw new Error(`API returned non-success status: ${response.data?.status || 'unknown'}`);
       }
-      // Save API response for local inspection
-      this.saveFile('api-run-response.json', response.data);
+      console.log("Response data:", response.data);
 
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
-      this.saveFile('verification.json', { success: finalSuccess, result_id: this.resultId });
       console.log(`::set-output name=success::${finalSuccess}`);
       return finalSuccess;
     } catch (error) {
@@ -369,6 +363,8 @@ Your goal is to identify bugs and issues that human testers might miss through a
         .select('*, suites(*, tests(*))')
         .eq('id', this.resultId)
         .single();
+        
+      console.log("Result:", result);
       
       if (result) {
         const totalSuites = result.suites?.length || 0;
@@ -412,12 +408,6 @@ Your goal is to identify bugs and issues that human testers might miss through a
 
   saveFile(name, data, json = true) {
     fs.writeFileSync(this.getPath(name), json ? JSON.stringify(data, null, 2) : data);
-    try {
-      const dest = path.join(this.runDir, name);
-      fs.writeFileSync(dest, json ? JSON.stringify(data, null, 2) : data);
-    } catch (e) {
-      console.warn(`Could not mirror ${name} to artifacts: ${e.message}`);
-    }
   }
 
   getPath(file) {
