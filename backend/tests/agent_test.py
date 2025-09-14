@@ -20,7 +20,7 @@ def main() -> None:
                         {
                             "role": "user",
                             "content": (
-                                "Go to https://uwaterloo.ca. "
+                                "Go to http://myproject123.io"
                                 "Click the header link labeled \"Admissions\". "
                                 "Confirm that the page you land on is related to Admissions."
                             ),

@@ -15,7 +15,7 @@ from .database import (
     set_suite_result_id,
 )
 from .prompts import build_agent_instructions
-from .utils import normalize_tests, make_remote_recording_dir, process_item
+from .utils import normalize_tests, make_remote_recording_dir, process_item, extract_major_steps
 from .record import start_recording, stop_recording
 
 class RunStatus(Enum):
@@ -29,7 +29,7 @@ load_dotenv()
 
 async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
     # Setup CUA agent
-    model = spec.get("model") or os.getenv("CUA_MODEL", "anthropic/claude-3-5-sonnet-20241022")
+    model = spec.get("model") or os.getenv("CUA_MODEL", "claude-sonnet-4-20250514")
     budget = spec.get("budget", 5.0)
     suite_id = spec.get("suite_id")
     
@@ -50,26 +50,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
         # Results from all tests from the suite
         suite_results: List[Dict[str, Any]] = []
         
-        def _prepare_step_for_storage(item: Dict[str, Any]):
-            t = item.get("type")
-            if t == "message":
-                try:
-                    content = item.get("content") or []
-                    for block in content:
-                        if isinstance(block, dict) and block.get("text"):
-                            return block["text"]
-                except Exception:
-                    return item
-            elif t in ("computer_call", "computer_call_output", "function_call", "function_call_output"):
-                pruned = dict(item)
-                if pruned.get("type") == "computer_call_output":
-                    output = pruned.get("output", {})
-                    if isinstance(output, dict) and "image_url" in output:
-                        output = dict(output)
-                        output["image_url"] = "[omitted]"
-                        pruned["output"] = output
-                return pruned
-            return item
+        
         
         async with Computer(
             os_type=os_type,
@@ -117,12 +98,12 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                 try:
                     async for result in agent.run(test_instructions):
                         for item in result.get("output", []):
-                            # Add agent's current step
+                            # Add agent's current condensed steps
                             test_agent_steps = process_item(item, suite_id, test_agent_steps)
-                            # Persist step immediately to DB
+                            # Persist condensed steps immediately to DB
                             if test_id is not None:
-                                step_payload = _prepare_step_for_storage(item)
-                                await append_test_step(test_id, step_payload)
+                                for step in extract_major_steps(item):
+                                    await append_test_step(test_id, step)
                             # Parse explicit verdict from agent message content
                             try:
                                 if isinstance(item, dict) and item.get("type") == "message":
