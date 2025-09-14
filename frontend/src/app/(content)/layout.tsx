@@ -10,7 +10,7 @@ export default function Layout({
       <header className="w-1/5 bg-off-background">
         <SideNavbar />
       </header>
-      <main className="w-4/5 shadow-[0_0_4px_rgba(0,0,0,0.25)] ">
+      <main className="w-4/5 shadow-[0_0_8px_rgba(0,0,0,0.25)] ">
         {children}
       </main>
     </div>
