@@ -21,17 +21,6 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'backend/cicd/package-lock.json'
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'pip'
-
-    - name: Install Python dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-        pip install python-dotenv supabase
 
     - name: Install Node dependencies
       run: |
@@ -43,7 +32,6 @@ jobs:
         cd backend/cicd
         npm run pipeline
       env:
-        PYTHONPATH: ${{ github.workspace }}/backend:${{ github.workspace }}/backend/agents
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         QAI_ENDPOINT: ${{ secrets.QAI_ENDPOINT }}
@@ -51,7 +39,3 @@ jobs:
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         DEPLOYMENT_URL: ${{ secrets.DEPLOYMENT_URL }}
         AGENT_TIMEOUT: ${{ secrets.AGENT_TIMEOUT }}
-        CUA_API_KEY: ${{ secrets.CUA_API_KEY }}
-        CUA_CONTAINER_NAME: ${{ secrets.CUA_CONTAINER_NAME }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        CUA_MODEL: anthropic/claude-3-5-sonnet-20241022

@@ -101,8 +101,13 @@ Generate focused test scenarios for autonomous agents.`
     this.createAgentFiles(scenarios);
     
     try {
-      // Use our database-integrated agent runner instead of external endpoint
-      console.log(`🤖 Running tests through integrated agent system...`);
+      // Use QAI API endpoint instead of running agents locally
+      console.log(`🤖 Running tests through QAI API endpoint...`);
+      
+      // Check if QAI_ENDPOINT is configured
+      if (!process.env.QAI_ENDPOINT) {
+        throw new Error('QAI_ENDPOINT environment variable is required');
+      }
       
       // Get the result_id from the database upload step
       if (!this.resultId) {
@@ -119,91 +124,64 @@ Generate focused test scenarios for autonomous agents.`
         throw new Error('No suites found for this result');
       }
       
-      console.log(`🏃 Running ${suites.length} agent suites...`);
-      
-      // Import and run our agent system for each suite
-      const { spawn } = require('child_process');
-      const path = require('path');
+      console.log(`🏃 Running ${suites.length} agent suites via API...`);
       
       const results = [];
+      const agentTimeout = parseInt(process.env.AGENT_TIMEOUT || '600000');
       
       for (const suite of suites) {
-        console.log(`🤖 Running suite: ${suite.name} (ID: ${suite.id})`);
+        console.log(`🤖 Calling API for suite: ${suite.name} (ID: ${suite.id})`);
         
         try {
-          // Run Python agent runner with suite_id
-          const pythonProcess = spawn('python3', [
-            path.join(__dirname, '../agents/run_suite.py'),
-            suite.id.toString()
-          ], {
-            env: { 
-              ...process.env,
-              SUITE_ID: suite.id.toString(),
-              DEPLOYMENT_URL: process.env.DEPLOYMENT_URL || 'https://staging.example.com'
+          // Call the QAI API endpoint to run the suite
+          const response = await axios.post(
+            `${process.env.QAI_ENDPOINT}/run-suite`,
+            { suite_id: suite.id },
+            { 
+              timeout: agentTimeout + 60000, // API timeout + 1 minute buffer
+              headers: { 'Content-Type': 'application/json' }
             }
-          });
+          );
           
-          let output = '';
-          let errorOutput = '';
-          
-          pythonProcess.stdout.on('data', (data) => {
-            output += data.toString();
-            console.log(`[Suite ${suite.id}] ${data.toString().trim()}`);
-          });
-          
-          pythonProcess.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-            console.error(`[Suite ${suite.id} ERROR] ${data.toString().trim()}`);
-          });
-          
-          await new Promise((resolve, reject) => {
-            pythonProcess.on('close', (code) => {
-              if (code === 0) {
-                resolve();
-              } else {
-                reject(new Error(`Agent process exited with code ${code}: ${errorOutput}`));
-              }
+          if (response.data.status === 'success') {
+            console.log(`✅ Suite ${suite.id} completed successfully via API`);
+            results.push({
+              suite_id: suite.id,
+              suite_name: suite.name,
+              success: true,
+              api_response: response.data
             });
-            
-            pythonProcess.on('error', (error) => {
-              reject(new Error(`Failed to start agent process: ${error.message}`));
-            });
-            
-            // Set timeout for agent execution
-            setTimeout(() => {
-              pythonProcess.kill();
-              reject(new Error('Agent execution timed out'));
-            }, parseInt(process.env.AGENT_TIMEOUT || '600000'));
-          });
-          
-          // Parse agent result from output (agents save to database)
-          results.push({
-            suite_id: suite.id,
-            suite_name: suite.name,
-            success: true,
-            output: output
-          });
+          } else {
+            throw new Error(`API returned non-success status: ${response.data.status}`);
+          }
           
         } catch (error) {
-          console.error(`❌ Suite ${suite.id} failed: ${error.message}`);
+          console.error(`❌ Suite ${suite.id} API call failed: ${error.message}`);
+          
+          let errorMessage = error.message;
+          if (error.response) {
+            errorMessage = `HTTP ${error.response.status}: ${error.response.data?.detail || error.response.statusText}`;
+          } else if (error.code === 'ECONNREFUSED') {
+            errorMessage = 'Cannot connect to QAI API endpoint';
+          }
+          
           results.push({
             suite_id: suite.id,
             suite_name: suite.name,
             success: false,
-            error: error.message
+            error: errorMessage
           });
         }
       }
       
-      console.log(`✅ Completed ${results.length} agent suite runs`);
-      let results_legacy = results;
+      console.log(`✅ Completed ${results.length} agent suite API calls`);
       
       this.saveFile('test-results.json', results);
 
       const passed = results.filter(r => r.success).length;
       const failed = results.length - passed;
       
-      console.log(`📊 Test Results: ${passed}/${results.length} suites passed`);
+      console.log(`📊 API Results: ${passed}/${results.length} suites passed`);
       
       if (failed > 0) {
         console.log(`❌ Failed suites:`);
@@ -212,7 +190,7 @@ Generate focused test scenarios for autonomous agents.`
         });
       }
 
-      console.log(`💾 Database results already updated by agent system`);
+      console.log(`💾 Database results updated by QAI API system`);
       
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
@@ -220,7 +198,7 @@ Generate focused test scenarios for autonomous agents.`
       console.log(`::set-output name=success::${finalSuccess}`);
       return finalSuccess;
     } catch (error) {
-      console.error(`❌ Agent execution failed: ${error.message}`);
+      console.error(`❌ QAI API execution failed: ${error.message}`);
       
       // Update database with failure status
       if (this.resultId) {
