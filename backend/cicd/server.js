@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { createClient } = require('@supabase/supabase-js');
@@ -26,6 +27,9 @@ const supabase = createClient(
 );
 
 app.use(express.json());
+// Enable CORS for all origins and handle preflight
+app.use(cors());
+app.options('*', cors());
 
 // API endpoints for managing results, suites, and tests
 
