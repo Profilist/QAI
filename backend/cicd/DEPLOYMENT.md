@@ -89,9 +89,11 @@ Your teammate's agent endpoint should:
 The workflow will:
 - ✅ Analyze your PR changes
 - ✅ Generate relevant test scenarios using LLM
-- ✅ Send scenarios to your agent endpoint
-- ✅ Pass/fail the CI based on test results
+- ✅ Upload scenarios to database and call QAI API endpoint
+- ✅ Pass/fail the CI based on test results from the API
 - ✅ Update codebase summary if tests pass
+
+**Note:** The pipeline now calls the QAI API endpoint (`/run-suite`) instead of running agents locally in GitHub Actions. This means GitHub Actions only needs the `QAI_ENDPOINT` URL and doesn't require `CUA_API_KEY` or other agent-specific credentials.
 
 ## Structured Output Benefits
 

@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from enum import Enum
 
-from .database import (
+from database import (
     get_or_create_test,
     append_test_step,
     update_test_fields,
@@ -20,7 +20,7 @@ from .record import start_recording, stop_recording
 
 class RunStatus(Enum):
     QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
+    RUNNING = "RUNNING" 
     PASSED = "PASSED"
     FAILED = "FAILED"
 
@@ -159,6 +159,54 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
         return suite_results
     
     return await _execute()
+
+async def run_qai_tests(suite_id: int) -> Dict[str, Any]:
+    """
+    Run tests for a specific suite ID from the database
+    This function is called by run_suite.py and qai-pipeline.js
+    """
+    from database import get_suite_with_tests
+    
+    try:
+        # Fetch suite and test data from database
+        suite_data = await get_suite_with_tests(suite_id)
+        if not suite_data:
+            return {
+                'agent_result': {
+                    'status': 'failed',
+                    'error': f'Suite {suite_id} not found'
+                }
+            }
+        
+        # Convert database format to agent spec format
+        spec = {
+            'suite_id': suite_id,
+            'model': os.getenv("CUA_MODEL", "anthropic/claude-3-5-sonnet-20241022"),
+            'budget': 5.0,
+            'container_name': os.getenv("CUA_CONTAINER_NAME"),
+            'tests': suite_data.get('tests', [])
+        }
+        
+        # Run the agent
+        result = await run_single_agent(spec)
+        
+        return {
+            'agent_result': {
+                'status': 'success',
+                'suite_id': suite_id,
+                'tests_run': len(result),
+                'results': result
+            }
+        }
+    except Exception as e:
+        print(f"Error running QAI tests for suite {suite_id}: {e}")
+        return {
+            'agent_result': {
+                'status': 'failed',
+                'error': str(e),
+                'suite_id': suite_id
+            }
+        }
 
 async def run_agents(test_specs: List[Dict[str, Any]], pr_name: str, pr_link: str) -> Dict[str, Any]:
     tasks = [run_single_agent(spec) for spec in test_specs]
