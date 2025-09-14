@@ -99,6 +99,43 @@ async def update_test_fields(test_id: int, fields: Dict[str, Any]) -> None:
 		print(f"[db] ❌ update_test_fields error: {str(e)}")
 
 
+async def get_suite_with_tests(suite_id: int) -> Optional[Dict[str, Any]]:
+	"""Fetch a suite with all its tests from the database."""
+	try:
+		if not _has_client():
+			print(f"[db] Skipping get_suite_with_tests for suite {suite_id}: no client")
+			return None
+		
+		# Get suite info
+		suite_resp = supabase.table('suites').select('*').eq('id', suite_id).single().execute()
+		if not suite_resp.data:
+			print(f"[db] Suite {suite_id} not found")
+			return None
+		
+		suite_data = suite_resp.data
+		
+		# Get associated tests
+		tests_resp = supabase.table('tests').select('*').eq('suite_id', suite_id).execute()
+		tests = tests_resp.data or []
+		
+		# Convert tests to the format expected by agents
+		formatted_tests = []
+		for test in tests:
+			formatted_tests.append({
+				'name': test.get('name', 'Untitled Test'),
+				'instructions': test.get('summary', '').split('\n') if test.get('summary') else ['Run basic test'],
+			})
+		
+		return {
+			'id': suite_data['id'],
+			'name': suite_data.get('name', 'Untitled Suite'),
+			'tests': formatted_tests
+		}
+	except Exception as e:
+		print(f"[db] ❌ get_suite_with_tests error: {str(e)}")
+		return None
+
+
 async def get_result_id_for_suite(suite_id: int) -> Optional[int]:
 	"""Return result_id for a given suite_id from suites table."""
 	try:
