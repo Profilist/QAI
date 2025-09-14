@@ -7,9 +7,15 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from enum import Enum
 
-from .database import save_agent_results_to_db
+from .database import (
+    get_or_create_test,
+    append_test_step,
+    update_test_fields,
+    create_result,
+    set_suite_result_id,
+)
 from .prompts import build_agent_instructions
-from .utils import slugify, utc_now_iso, short_id, normalize_tests, make_remote_recording_dir, process_item
+from .utils import normalize_tests, make_remote_recording_dir, process_item
 from .record import start_recording, stop_recording
 
 class RunStatus(Enum):
@@ -44,6 +50,27 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
         # Results from all tests from the suite
         suite_results: List[Dict[str, Any]] = []
         
+        def _prepare_step_for_storage(item: Dict[str, Any]):
+            t = item.get("type")
+            if t == "message":
+                try:
+                    content = item.get("content") or []
+                    for block in content:
+                        if isinstance(block, dict) and block.get("text"):
+                            return block["text"]
+                except Exception:
+                    return item
+            elif t in ("computer_call", "computer_call_output", "function_call", "function_call_output"):
+                pruned = dict(item)
+                if pruned.get("type") == "computer_call_output":
+                    output = pruned.get("output", {})
+                    if isinstance(output, dict) and "image_url" in output:
+                        output = dict(output)
+                        output["image_url"] = "[omitted]"
+                        pruned["output"] = output
+                return pruned
+            return item
+        
         async with Computer(
             os_type=os_type,
             provider_type=provider_type,
@@ -73,7 +100,9 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                 # Per-test accumulators
                 test_agent_steps: List[Dict[str, Any]] = []
                 test_run_status = RunStatus.RUNNING
-                recording_stop = None
+                
+                # Ensure DB row exists for this test
+                test_id = await get_or_create_test(suite_id, test_name) if suite_id is not None else None
                 
                 # Start recording inside VM
                 try:
@@ -87,24 +116,38 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     async for result in agent.run(test_instructions):
                         for item in result.get("output", []):
                             # Add agent's current step
-                            test_agent_steps = process_item(item, suite_id, test_agent_steps)  
+                            test_agent_steps = process_item(item, suite_id, test_agent_steps)
+                            # Persist step immediately to DB
+                            if test_id is not None:
+                                step_payload = _prepare_step_for_storage(item)
+                                await append_test_step(test_id, step_payload)
                 except Exception as e:
                     test_run_status = RunStatus.FAILED
                     print(f"[Agent {suite_id}] test {test_name} failed: {e}")
                 finally:
                     # Determine pass/fail
                     passed = test_run_status == RunStatus.PASSED
-                    recording_url = None
+                    s3_link = None
                     
                     # Stop recording and get S3 URL
                     try:
+                        recording_stop = await computer.venv_exec("demo_venv", stop_recording)
                         if isinstance(recording_stop, dict):
                             upload = recording_stop.get("upload") or {}
                             resp = upload.get("response") or {}
-                            recording_url = resp.get("fileUrl") or resp.get("url")
+                            s3_link = resp.get("fileUrl") or resp.get("url")
                             print(f"[Agent {suite_id}] recording stopped for {test_name}")
-                    except Exception:
+                    except Exception as e:
+                        print(f"[Agent {suite_id}] stop_recording error for {test_name}: {e}")
                         pass
+                    
+                    # Persist final test fields
+                    if test_id is not None:
+                        await update_test_fields(test_id, {
+                            "test_success": passed,
+                            "s3_link": s3_link,
+                            "run_status": test_run_status.value,
+                        })
                 
                 # Add test result to suite results
                 suite_results.append({
@@ -112,7 +155,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     "name": test_name,
                     "test_success": passed,
                     "steps": test_agent_steps,
-                    "s3_link": recording_url,
+                    "s3_link": s3_link,
                     "run_status": test_run_status,
                     })
         
@@ -124,35 +167,38 @@ async def run_agents(test_specs: List[Dict[str, Any]], pr_name: str, pr_link: st
     tasks = [run_single_agent(spec) for spec in test_specs]
     results: List[Dict[str, Any]] = await asyncio.gather(*tasks, return_exceptions=True)
     
-    run_status = RunStatus.RUNNING
-    passed = failed = 0
-    
+    total_tests = 0
+    passed_tests = 0
+    failed_tests = 0
     for res in results:
         if isinstance(res, Exception):
-            failed += 1
-            run_status = RunStatus.FAILED
-        else:
-            passed += 1
-    
+            continue
+        for t in res:
+            total_tests += 1
+            if t.get("test_success"):
+                passed_tests += 1
+            else:
+                failed_tests += 1
+    run_status = RunStatus.PASSED if failed_tests == 0 else RunStatus.FAILED
     overall_result = {
-        "passed_tests": passed,
-        "failed_tests": failed,
-        "total_tests": passed + failed,
-        }
-    
-    results = {
+        "passed_tests": passed_tests,
+        "failed_tests": failed_tests,
+        "total_tests": total_tests,
+    }
+    # Create result row and link suites
+    try:
+        result_id = await create_result(pr_name, pr_link, overall_result, run_status.value)
+        if result_id is not None:
+            suite_ids = {spec.get("suite_id") for spec in test_specs if spec.get("suite_id") is not None}
+            for sid in suite_ids:
+                await set_suite_result_id(int(sid), int(result_id))
+    except Exception as _e:
+        print(f"[db] result update error: {_e}")
+    summary = {
         "pr_name": pr_name,
         "pr_link": pr_link,
         "overall_result": overall_result,
-        "run_status": run_status,
-        }
-    
-    print(json.dumps(results))
-    return results
-
-
-async def run_qai_tests(test_specs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-    """Main entry point for running QAI tests"""
-    print(f"🗄️ Running tests from suite {test_specs[0]['suite_id']}")
-    return await run_agents(test_specs)
-
+        "run_status": run_status.value,
+    }
+    print(json.dumps(summary))
+    return summary
