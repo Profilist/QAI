@@ -114,87 +114,24 @@ Generate focused test scenarios for autonomous agents.`
         throw new Error('No result_id available - database upload may have failed');
       }
       
-      // Get suites for this result to run agents
-      const { data: suites } = await this.supabase
-        .from('suites')
-        .select('id, name')
-        .eq('result_id', this.resultId);
-      
-      if (!suites || suites.length === 0) {
-        throw new Error('No suites found for this result');
-      }
-      
-      console.log(`🏃 Running ${suites.length} agent suites via API...`);
-      
-      const results = [];
+      // Call new single-shot endpoint to run all suites for this result
       const agentTimeout = parseInt(process.env.AGENT_TIMEOUT || '600000');
-      
-      for (const suite of suites) {
-        console.log(`🤖 Calling API for suite: ${suite.name} (ID: ${suite.id})`);
-        
-        try {
-          // Call the QAI API endpoint to run the suite
-          const response = await axios.post(
-            `${process.env.QAI_ENDPOINT}/run-suite`,
-            { suite_id: suite.id },
-            { 
-              timeout: agentTimeout + 60000, // API timeout + 1 minute buffer
-              headers: { 'Content-Type': 'application/json' }
-            }
-          );
-          
-          if (response.data.status === 'success') {
-            console.log(`✅ Suite ${suite.id} completed successfully via API`);
-            results.push({
-              suite_id: suite.id,
-              suite_name: suite.name,
-              success: true,
-              api_response: response.data
-            });
-          } else {
-            throw new Error(`API returned non-success status: ${response.data.status}`);
-          }
-          
-        } catch (error) {
-          console.error(`❌ Suite ${suite.id} API call failed: ${error.message}`);
-          
-          let errorMessage = error.message;
-          if (error.response) {
-            errorMessage = `HTTP ${error.response.status}: ${error.response.data?.detail || error.response.statusText}`;
-          } else if (error.code === 'ECONNREFUSED') {
-            errorMessage = 'Cannot connect to QAI API endpoint';
-          }
-          
-          results.push({
-            suite_id: suite.id,
-            suite_name: suite.name,
-            success: false,
-            error: errorMessage
-          });
+      console.log(`🏃 Calling /run-result for result_id=${this.resultId} ...`);
+      const response = await axios.post(
+        `${process.env.QAI_ENDPOINT}/run-result`,
+        { result_id: this.resultId },
+        {
+          timeout: agentTimeout + 60000,
+          headers: { 'Content-Type': 'application/json' }
         }
-      }
-      
-      console.log(`✅ Completed ${results.length} agent suite API calls`);
-      
-      this.saveFile('test-results.json', results);
+      );
 
-      const passed = results.filter(r => r.success).length;
-      const failed = results.length - passed;
-      
-      console.log(`📊 API Results: ${passed}/${results.length} suites passed`);
-      
-      if (failed > 0) {
-        console.log(`❌ Failed suites:`);
-        results.filter(r => !r.success).forEach(result => {
-          console.log(`   • ${result.suite_name}: ${result.error || 'Failed'}`);
-        });
+      if (response.data?.status !== 'success') {
+        throw new Error(`API returned non-success status: ${response.data?.status || 'unknown'}`);
       }
 
-      console.log(`💾 Database results updated by QAI API system`);
-      
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
-      
       console.log(`::set-output name=success::${finalSuccess}`);
       return finalSuccess;
     } catch (error) {

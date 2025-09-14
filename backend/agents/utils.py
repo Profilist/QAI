@@ -37,40 +37,63 @@ def make_remote_recording_dir(suite_id: str, test_name: str) -> str:
 
 def process_item(item: dict, suite_id: str, test_agent_steps: list[dict]) -> dict:
     item_type = item.get("type")
-                            
+    
     if item_type == "message":
         try:
             content = item.get("content") or []
             for block in content:
                 if isinstance(block, dict) and block.get("text"):
-                    print(f"[Agent {suite_id}] message: {block['text']}")
-                    test_agent_steps.append(block["text"])
+                    text = block["text"]
+                    for line in str(text).splitlines():
+                        candidate = line.strip()
+                        if candidate.upper().startswith("STEP:"):
+                            step_text = candidate.split(":", 1)[1].strip()
+                            step_text = step_text
+                            if step_text:
+                                print(f"[Agent {suite_id}] STEP: {step_text}")
+                                test_agent_steps.append(step_text)
         except Exception:
             pass
     
     elif item_type in ("computer_call", "computer_call_output", "function_call", "function_call_output"):
+        # Keep debug output, but do not append raw tool calls to steps
         pruned = dict(item)
         if pruned.get("type") == "computer_call_output":
             output = pruned.get("output", {})
             if isinstance(output, dict) and "image_url" in output:
-                output = dict(output)
-                output["image_url"] = "[omitted]"
-                pruned["output"] = output
                 print(f"[Agent {suite_id}] computer_call_output: screenshot captured")
-            
         elif pruned.get("type") == "computer_call":
             action = pruned.get("action", {}) or {}
             a_type = action.get("type", "unknown")
             a_args = {k: v for k, v in action.items() if k != "type"}
             print(f"[Agent {suite_id}] computer_call: {a_type}({a_args})")
-            
         elif pruned.get("type") == "function_call":
             fname = pruned.get("name", "<anon>")
             print(f"[Agent {suite_id}] function_call: {fname}")
-            
         elif pruned.get("type") == "function_call_output":
             print(f"[Agent {suite_id}] function_call_output: received")
             
-        test_agent_steps.append(pruned)
-            
     return test_agent_steps
+
+
+def extract_major_steps(item: dict) -> list[str]:
+    """Extract condensed STEP lines from a single agent output item."""
+    steps: list[str] = []
+    try:
+        if item.get("type") != "message":
+            return steps
+        content = item.get("content") or []
+        for block in content:
+            if isinstance(block, dict) and block.get("text"):
+                text = block["text"]
+                for line in str(text).splitlines():
+                    candidate = line.strip()
+                    if candidate.upper().startswith("STEP:"):
+                        step_text = candidate.split(":", 1)[1].strip()
+                        step_text = step_text
+                        if step_text:
+                            steps.append(step_text)
+    except Exception:
+        return steps
+    return steps
+

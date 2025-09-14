@@ -1,9 +1,9 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from supabase import create_client
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 import os
 
-load_dotenv()
+load_dotenv(find_dotenv())
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
@@ -149,3 +149,62 @@ async def get_result_id_for_suite(suite_id: int) -> Optional[int]:
 	except Exception as e:
 		print(f"[db] ❌ get_result_id_for_suite error: {str(e)}")
 		return None
+
+
+async def get_suites_with_tests_for_result(result_id: int) -> List[Dict[str, Any]]:
+	"""Fetch all suites (and their tests) for a given result_id, formatted for agent specs."""
+	try:
+		if not _has_client():
+			print(f"[db] Skipping get_suites_with_tests_for_result for result {result_id}: no client")
+			return []
+		# Fetch suites under the result
+		suites_resp = supabase.table('suites').select('id,name').eq('result_id', result_id).execute()
+		suites = suites_resp.data or []
+		specs: List[Dict[str, Any]] = []
+		for s in suites:
+			suite_id = s.get('id')
+			name = s.get('name', 'Untitled Suite')
+			if suite_id is None:
+				continue
+			# Fetch tests for this suite
+			tests_resp = supabase.table('tests').select('*').eq('suite_id', suite_id).execute()
+			tests = tests_resp.data or []
+			formatted_tests: List[Dict[str, Any]] = []
+			for t in tests:
+				formatted_tests.append({
+					'name': t.get('name', 'Untitled Test'),
+					'instructions': t.get('summary', '').split('\n') if t.get('summary') else ['Run basic test'],
+				})
+			specs.append({
+				'suite_id': suite_id,
+				'name': name,
+				'tests': formatted_tests,
+			})
+		return specs
+	except Exception as e:
+		print(f"[db] ❌ get_suites_with_tests_for_result error: {str(e)}")
+		return []
+
+
+async def get_result_basics(result_id: int) -> Optional[Dict[str, Any]]:
+	"""Fetch basic fields from results needed to run agents (pr_name, pr-link)."""
+	try:
+		if not _has_client():
+			return None
+		resp = supabase.table('results').select('id, pr_name, pr-link').eq('id', result_id).limit(1).execute()
+		if resp.data:
+			return resp.data[0]
+		return None
+	except Exception as e:
+		print(f"[db] ❌ get_result_basics error: {str(e)}")
+		return None
+
+
+async def update_result_fields(result_id: int, fields: Dict[str, Any]) -> None:
+	"""Generic update for a results row."""
+	try:
+		if not _has_client():
+			return
+		supabase.table('results').update(fields).eq('id', result_id).execute()
+	except Exception as e:
+		print(f"[db] ❌ update_result_fields error: {str(e)}")
