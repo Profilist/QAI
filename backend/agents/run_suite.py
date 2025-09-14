@@ -5,7 +5,6 @@ This script is called by qai-pipeline.js to execute individual test suites
 """
 import sys
 import asyncio
-import os
 from pathlib import Path
 
 # Add the agents directory to the Python path
