@@ -49,16 +49,6 @@
   --font-content: var(--font-eb-garamond);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #242424;
-    --off-background: #111111;
-
-    --foreground: #ffffff;
-    --off-foreground: #fdfdfd;
-  }
-}
-
 @layer components {
   .heading {
     @apply font-heading text-off-foreground;
