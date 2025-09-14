@@ -23,7 +23,7 @@ export default function Home() {
         </p>
         <div className="space-x-4">
           <Link 
-            href="/dashboard" 
+            href="/1000/test-suites" 
             className="px-8 py-3 rounded-lg text-lg font-semibold transition-colors duration-200"
             style={{ 
               backgroundColor: 'var(--gray-dark)', 
@@ -39,7 +39,7 @@ export default function Home() {
             Go to Dashboard
           </Link>
           <Link 
-            href="/test-suites" 
+            href="/1000/test-suites" 
             className="px-8 py-3 rounded-lg text-lg font-semibold transition-colors duration-200"
             style={{ 
               backgroundColor: 'var(--gray-medium)', 
