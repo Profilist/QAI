@@ -174,7 +174,7 @@ app.get('/results/:id/suites', async (req, res) => {
     const { data, error } = await supabase
       .from('suites')
       .select('*')
-      .eq('id', id)
+      .eq('result_id', id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -280,7 +280,7 @@ app.get('/suites/:id/tests', async (req, res) => {
     const { data, error } = await supabase
       .from('tests')
       .select('*')
-      .eq('id', id)
+      .eq('suite_id', id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
