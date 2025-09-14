@@ -213,15 +213,3 @@ def status():
         except Exception:
             running = False
     return {"ok": True, "running": running, "path": data.get("path"), "pid": pid, "fps": data.get("fps")}
-
-
-def _pid_alive(pid):
-    # Kept for compatibility if imported directly; not used by venv_exec paths
-    import os as _os
-    try:
-        _os.kill(pid, 0)
-        return True
-    except Exception:
-        return False
-
-

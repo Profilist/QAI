@@ -7,7 +7,7 @@ load_dotenv()
 
 def build_agent_instructions(tests: List[Dict], suite: Dict) -> str:
 	"""Build optimized instructions for autonomous agent testing with concise STEP emissions."""
-	base_url = os.getenv("DEPLOYMENT_URL", "https://staging.example.com")
+	base_url = os.getenv("DEPLOYMENT_URL", "https://www.larris.me/")
 
 	# Create concise, UI-friendly testing instructions
 	instructions = f"""
@@ -22,7 +22,7 @@ COMMUNICATION RULES (MANDATORY):
 - Major steps are human-meaningful actions: navigation, key clicks that change pages, form submissions, and verifications.
 - Exclude micro steps (mouse moves, small scrolls, key-by-key typing) unless they are the core action.
 - Exclude continuations from the last step (ex. "Continuing to scroll").
-- Keep each step under 7 words when possible.
+- Keep each step as simple as possible, under 7 words ideally.
 - After completing each test scenario, output exactly one line: "RESULT: PASSED" or "RESULT: FAILED".
 
 TESTING APPROACH:
@@ -46,7 +46,7 @@ SPECIFIC TEST SCENARIOS:
 TESTING GUIDELINES:
 - Be thorough, but keep communication to STEP lines only
 - Take screenshots at key moments for your own reasoning, but do not describe them
-- Test both happy paths and edge cases
+- YOU ARE ON AN EXTREME TIME CRUNCH, test as EFFICIENTLY as possible, which could mean forming a conclusion PASS/FAIL faster instead of trying over and over again.
 - Prioritize actions that meaningfully change app state or page
 
 FINAL VERDICT FORMAT (MANDATORY):
