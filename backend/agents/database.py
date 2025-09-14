@@ -118,13 +118,14 @@ async def get_suite_with_tests(suite_id: int) -> Optional[Dict[str, Any]]:
 		# Get associated tests
 		tests_resp = supabase.table('tests').select('*').eq('suite_id', suite_id).execute()
 		tests = tests_resp.data or []
+		# print(f"[db] Tests: {tests}")
 		
 		# Convert tests to the format expected by agents
 		formatted_tests = []
 		for test in tests:
 			formatted_tests.append({
 				'name': test.get('name', 'Untitled Test'),
-				'instructions': test.get('summary', '').split('\n') if test.get('summary') else ['Run basic test'],
+				'instructions': test.get('summary', '').split('\n') if test.get('summary') else [{'role': 'user', 'content': 'Verify that the browser is open.'}]
 			})
 		
 		return {
@@ -169,11 +170,13 @@ async def get_suites_with_tests_for_result(result_id: int) -> List[Dict[str, Any
 			# Fetch tests for this suite
 			tests_resp = supabase.table('tests').select('*').eq('suite_id', suite_id).execute()
 			tests = tests_resp.data or []
+			# print(f"[db] Tests: {tests}")
+   
 			formatted_tests: List[Dict[str, Any]] = []
 			for t in tests:
 				formatted_tests.append({
 					'name': t.get('name', 'Untitled Test'),
-					'instructions': t.get('summary', '').split('\n') if t.get('summary') else ['Run basic test'],
+					'instructions': t.get('summary', '').split('\n') if t.get('summary') else [{'role': 'user', 'content': 'Verify that the browser is open.'}],
 				})
 			specs.append({
 				'suite_id': suite_id,

@@ -15,6 +15,12 @@ class QAIPipeline {
     this.prNumber = this.getPRNumber();
     this.repo = process.env.GITHUB_REPOSITORY?.split('/') || [];
     this.runId = `run_${Date.now()}_pr${this.prNumber}`;
+    this.runDir = path.join(__dirname, '../artifacts/agent', this.runId);
+    try {
+      fs.mkdirSync(this.runDir, { recursive: true });
+    } catch (e) {
+      console.warn(`Could not create artifacts dir ${this.runDir}: ${e.message}`);
+    }
     console.log(`🚀 Initializing QAI Pipeline - Run ID: ${this.runId}`);
   }
 
@@ -55,7 +61,9 @@ CODEBASE: ${codebaseSummary}
 PR: ${pr.title} - ${pr.body || 'No description'}
 CHANGES: ${diff}
 
-Generate focused test scenarios for autonomous agents.`
+Generate focused test scenarios for autonomous agents.
+
+For EACH scenario, also include a concise but rich summary (1-3 sentences) that gives the agent business context and the precise objective of the test. The summary should read like: "On <deployment url or app>, you are testing <feature or flow>; in this test, you <core action and intent> to validate <expected behavior/validation>".`
       }],
       response_format: {
         type: "json_schema",
@@ -73,9 +81,10 @@ Generate focused test scenarios for autonomous agents.`
                     priority: { type: "string", enum: ["high", "medium", "low"] },
                     type: { type: "string", enum: ["ui", "api", "integration", "e2e"] },
                     persona: { type: "string" },
-                    steps: { type: "array", items: { type: "string" } }
+                    steps: { type: "array", items: { type: "string" } },
+                    summary: { type: "string" }
                   },
-                  required: ["description", "priority", "type", "persona", "steps"]
+                  required: ["description", "priority", "type", "persona", "steps", "summary"]
                 }
               }
             }
@@ -84,7 +93,14 @@ Generate focused test scenarios for autonomous agents.`
       }
     });
 
-    const scenarios = completion.choices[0].message.parsed.scenarios;
+    const parsedScenarios = completion.choices[0].message.parsed.scenarios;
+    const deploymentUrl = process.env.DEPLOYMENT_URL || 'the app';
+    const scenarios = parsedScenarios.map(s => ({
+      ...s,
+      summary: s.summary && typeof s.summary === 'string' && s.summary.trim() 
+        ? s.summary 
+        : `On ${deploymentUrl}, you are testing ${s.type || 'a'} scenario: ${s.description}. In this test, follow the steps to validate the expected behavior and surface any validation or UX issues.`,
+    }));
     this.saveFile('test-scenarios.json', scenarios);
     console.log(`✅ Generated ${scenarios.length} test scenarios`);
     
@@ -129,9 +145,12 @@ Generate focused test scenarios for autonomous agents.`
       if (response.data?.status !== 'success') {
         throw new Error(`API returned non-success status: ${response.data?.status || 'unknown'}`);
       }
+      // Save API response for local inspection
+      this.saveFile('api-run-response.json', response.data);
 
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
+      this.saveFile('verification.json', { success: finalSuccess, result_id: this.resultId });
       console.log(`::set-output name=success::${finalSuccess}`);
       return finalSuccess;
     } catch (error) {
@@ -153,10 +172,10 @@ Generate focused test scenarios for autonomous agents.`
     try {
       // First, create the results record (PR level)
       const prData = {
-        'pr-link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
+        'pr_link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
         'pr_name': `PR #${this.prNumber}`,
         'overall_result': {},
-        'run_status': 'QUEUED'
+        'run_status': 'RUNNING'
       };
 
       const { data: resultData, error: resultError } = await this.supabase
@@ -206,8 +225,9 @@ Generate focused test scenarios for autonomous agents.`
         const testRecords = personaScenarios.map(scenario => ({
           suite_id: suiteData.id, // Foreign key to suites table
           name: scenario.description,
+          summary: scenario.summary,
           test_success: null,
-          run_status: 'QUEUED',
+          run_status: 'RUNNING',
           steps: []
         }));
 
@@ -277,7 +297,7 @@ Generate focused test scenarios for autonomous agents.`
           .from('results')
           .update({ 
             run_status: allTestsPassed ? 'PASSED' : 'FAILED',
-            overall_result: { passed: passedTests, total: totalTests }
+            overall_result: { passed: passedTests, failed: totalTests - passedTests, total: totalTests }
           })
           .eq('id', this.resultId);
       }
@@ -392,6 +412,12 @@ Your goal is to identify bugs and issues that human testers might miss through a
 
   saveFile(name, data, json = true) {
     fs.writeFileSync(this.getPath(name), json ? JSON.stringify(data, null, 2) : data);
+    try {
+      const dest = path.join(this.runDir, name);
+      fs.writeFileSync(dest, json ? JSON.stringify(data, null, 2) : data);
+    } catch (e) {
+      console.warn(`Could not mirror ${name} to artifacts: ${e.message}`);
+    }
   }
 
   getPath(file) {

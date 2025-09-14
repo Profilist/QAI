@@ -52,8 +52,6 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
         # Results from all tests from the suite
         suite_results: List[Dict[str, Any]] = []
         
-        
-        
         async with Computer(
             os_type=os_type,
             provider_type=provider_type,
@@ -99,7 +97,6 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     
                 try:
                     async for result in agent.run(test_instructions):
-                        print(f"WTF HEREHEREHEREHEREHEREHERE {result}")
                         for item in result.get("output", []):
                             # Add agent's current condensed steps
                             test_agent_steps = process_item(item, suite_id, test_agent_steps)
@@ -284,7 +281,6 @@ async def run_suites_for_result(result_id: int) -> Dict[str, Any]:
         failed_tests = 0
         for res in results:
             if isinstance(res, Exception):
-                # Count as a failed suite with unknown test count
                 continue
             for t in res:
                 total_tests += 1
