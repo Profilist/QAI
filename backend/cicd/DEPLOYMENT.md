@@ -12,7 +12,7 @@ Add these in your repo settings → Secrets and variables → Actions:
 2. **`QAI_ENDPOINT`** - URL where your agent testing endpoint will be hosted
 3. **`GITHUB_TOKEN`** - ✅ Automatically provided by GitHub Actions
 
-## Optional Secrets
+## (Optional) Secrets
 
 - **`DEPLOYMENT_URL`** - Override the staging URL if needed
 - **`AGENT_TIMEOUT`** - Custom timeout in milliseconds (default: 300000)
