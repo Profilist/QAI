@@ -15,5 +15,10 @@
   "env": {
     "PYTHONPATH": ".",
     "STORAGE_PATH": "/tmp"
+  },
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.9"
+    }
   }
 }
