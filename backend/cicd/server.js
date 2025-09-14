@@ -29,7 +29,7 @@ const supabase = createClient(
 app.use(express.json());
 // Enable CORS for all origins and handle preflight
 app.use(cors());
-app.options('*', cors());
+// app.options('*', cors());
 
 // API endpoints for managing results, suites, and tests
 
