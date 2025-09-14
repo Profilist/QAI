@@ -101,8 +101,13 @@ Generate focused test scenarios for autonomous agents.`
     this.createAgentFiles(scenarios);
     
     try {
-      // Use our database-integrated agent runner instead of external endpoint
-      console.log(`🤖 Running tests through integrated agent system...`);
+      // Use QAI API endpoint instead of running agents locally
+      console.log(`🤖 Running tests through QAI API endpoint...`);
+      
+      // Check if QAI_ENDPOINT is configured
+      if (!process.env.QAI_ENDPOINT) {
+        throw new Error('QAI_ENDPOINT environment variable is required');
+      }
       
       // Get the result_id from the database upload step
       if (!this.resultId) {
@@ -119,91 +124,64 @@ Generate focused test scenarios for autonomous agents.`
         throw new Error('No suites found for this result');
       }
       
-      console.log(`🏃 Running ${suites.length} agent suites...`);
-      
-      // Import and run our agent system for each suite
-      const { spawn } = require('child_process');
-      const path = require('path');
+      console.log(`🏃 Running ${suites.length} agent suites via API...`);
       
       const results = [];
+      const agentTimeout = parseInt(process.env.AGENT_TIMEOUT || '600000');
       
       for (const suite of suites) {
-        console.log(`🤖 Running suite: ${suite.name} (ID: ${suite.id})`);
+        console.log(`🤖 Calling API for suite: ${suite.name} (ID: ${suite.id})`);
         
         try {
-          // Run Python agent runner with suite_id
-          const pythonProcess = spawn('python3', [
-            path.join(__dirname, '../agents/run_suite.py'),
-            suite.id.toString()
-          ], {
-            env: { 
-              ...process.env,
-              SUITE_ID: suite.id.toString(),
-              DEPLOYMENT_URL: process.env.DEPLOYMENT_URL || 'https://staging.example.com'
+          // Call the QAI API endpoint to run the suite
+          const response = await axios.post(
+            `${process.env.QAI_ENDPOINT}/run-suite`,
+            { suite_id: suite.id },
+            { 
+              timeout: agentTimeout + 60000, // API timeout + 1 minute buffer
+              headers: { 'Content-Type': 'application/json' }
             }
-          });
+          );
           
-          let output = '';
-          let errorOutput = '';
-          
-          pythonProcess.stdout.on('data', (data) => {
-            output += data.toString();
-            console.log(`[Suite ${suite.id}] ${data.toString().trim()}`);
-          });
-          
-          pythonProcess.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-            console.error(`[Suite ${suite.id} ERROR] ${data.toString().trim()}`);
-          });
-          
-          await new Promise((resolve, reject) => {
-            pythonProcess.on('close', (code) => {
-              if (code === 0) {
-                resolve();
-              } else {
-                reject(new Error(`Agent process exited with code ${code}: ${errorOutput}`));
-              }
+          if (response.data.status === 'success') {
+            console.log(`✅ Suite ${suite.id} completed successfully via API`);
+            results.push({
+              suite_id: suite.id,
+              suite_name: suite.name,
+              success: true,
+              api_response: response.data
             });
-            
-            pythonProcess.on('error', (error) => {
-              reject(new Error(`Failed to start agent process: ${error.message}`));
-            });
-            
-            // Set timeout for agent execution
-            setTimeout(() => {
-              pythonProcess.kill();
-              reject(new Error('Agent execution timed out'));
-            }, parseInt(process.env.AGENT_TIMEOUT || '600000'));
-          });
-          
-          // Parse agent result from output (agents save to database)
-          results.push({
-            suite_id: suite.id,
-            suite_name: suite.name,
-            success: true,
-            output: output
-          });
+          } else {
+            throw new Error(`API returned non-success status: ${response.data.status}`);
+          }
           
         } catch (error) {
-          console.error(`❌ Suite ${suite.id} failed: ${error.message}`);
+          console.error(`❌ Suite ${suite.id} API call failed: ${error.message}`);
+          
+          let errorMessage = error.message;
+          if (error.response) {
+            errorMessage = `HTTP ${error.response.status}: ${error.response.data?.detail || error.response.statusText}`;
+          } else if (error.code === 'ECONNREFUSED') {
+            errorMessage = 'Cannot connect to QAI API endpoint';
+          }
+          
           results.push({
             suite_id: suite.id,
             suite_name: suite.name,
             success: false,
-            error: error.message
+            error: errorMessage
           });
         }
       }
       
-      console.log(`✅ Completed ${results.length} agent suite runs`);
-      let results_legacy = results;
+      console.log(`✅ Completed ${results.length} agent suite API calls`);
       
       this.saveFile('test-results.json', results);
 
       const passed = results.filter(r => r.success).length;
       const failed = results.length - passed;
       
-      console.log(`📊 Test Results: ${passed}/${results.length} suites passed`);
+      console.log(`📊 API Results: ${passed}/${results.length} suites passed`);
       
       if (failed > 0) {
         console.log(`❌ Failed suites:`);
@@ -212,22 +190,21 @@ Generate focused test scenarios for autonomous agents.`
         });
       }
 
-      console.log(`💾 Database results already updated by agent system`);
+      console.log(`💾 Database results updated by QAI API system`);
       
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
       
       console.log(`::set-output name=success::${finalSuccess}`);
-      const finalSuccess = await this.verifyFinalResults();
       return finalSuccess;
     } catch (error) {
-      console.error(`❌ Agent execution failed: ${error.message}`);
+      console.error(`❌ QAI API execution failed: ${error.message}`);
       
       // Update database with failure status
       if (this.resultId) {
         await this.supabase
           .from('results')
-          .update({ 'res-success': false })
+          .update({ run_status: 'FAILED' })
           .eq('id', this.resultId);
       }
       
@@ -240,8 +217,9 @@ Generate focused test scenarios for autonomous agents.`
       // First, create the results record (PR level)
       const prData = {
         'pr-link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
-        'pr-name': `PR #${this.prNumber}`,
-        'res-success': false // Will be updated after tests complete
+        'pr_name': `PR #${this.prNumber}`,
+        'overall_result': {},
+        'run_status': 'QUEUED'
       };
 
       const { data: resultData, error: resultError } = await this.supabase
@@ -271,8 +249,7 @@ Generate focused test scenarios for autonomous agents.`
       for (const [persona, personaScenarios] of Object.entries(personaGroups)) {
         const suiteRecord = {
           result_id: this.resultId, // Foreign key to results table
-          name: `${persona} Agent Suite`,
-          'suites-success': null // Will be updated after tests
+          name: `${persona} Agent Suite`
         };
 
         const { data: suiteData, error: suiteError } = await this.supabase
@@ -292,8 +269,9 @@ Generate focused test scenarios for autonomous agents.`
         const testRecords = personaScenarios.map(scenario => ({
           suite_id: suiteData.id, // Foreign key to suites table
           name: scenario.description,
-          summary: `${scenario.type} test with ${scenario.priority} priority`,
-          'test-success': null
+          test_success: null,
+          run_status: 'QUEUED',
+          steps: []
         }));
 
         const { error: testsError } = await this.supabase
@@ -318,8 +296,8 @@ Generate focused test scenarios for autonomous agents.`
         const { error } = await this.supabase
           .from('tests')
           .update({
-            'test-success': result.success,
-            summary: result.error || `Test completed in ${result.duration}ms`
+            test_success: result.success,
+            run_status: result.success ? 'PASSED' : 'FAILED'
           })
           .eq('name', result.scenario.description);
 
@@ -337,33 +315,33 @@ Generate focused test scenarios for autonomous agents.`
       for (const suite of suites || []) {
         const { data: suiteTests } = await this.supabase
           .from('tests')
-          .select('test-success')
+          .select('test_success')
           .eq('suite_id', suite.id);
 
-        const allTestsComplete = suiteTests?.every(test => test['test-success'] !== null);
-        const allTestsPassed = suiteTests?.every(test => test['test-success'] === true);
+        const allTestsComplete = suiteTests?.every(test => test.test_success !== null);
+        const allTestsPassed = suiteTests?.every(test => test.test_success === true);
 
-        if (allTestsComplete) {
-          await this.supabase
-            .from('suites')
-            .update({ 'suites-success': allTestsPassed })
-            .eq('id', suite.id);
-        }
+        // Note: suites table doesn't have success column in the provided schema
+        // Tests success will be tracked at the result level
       }
 
-      // Update overall PR result
-      const { data: allSuites } = await this.supabase
-        .from('suites')
-        .select('suites-success')
-        .eq('result_id', this.resultId);
+      // Update overall PR result based on all tests
+      const { data: allTests } = await this.supabase
+        .from('tests')
+        .select('test_success')
+        .in('suite_id', suites?.map(s => s.id) || []);
 
-      const allSuitesComplete = allSuites?.every(suite => suite['suites-success'] !== null);
-      const allSuitesPassed = allSuites?.every(suite => suite['suites-success'] === true);
+      const totalTests = allTests?.length || 0;
+      const passedTests = allTests?.filter(test => test.test_success === true).length || 0;
+      const allTestsPassed = totalTests > 0 && passedTests === totalTests;
 
-      if (allSuitesComplete) {
+      if (totalTests > 0) {
         await this.supabase
           .from('results')
-          .update({ 'res-success': allSuitesPassed })
+          .update({ 
+            run_status: allTestsPassed ? 'PASSED' : 'FAILED',
+            overall_result: { passed: passedTests, total: totalTests }
+          })
           .eq('id', this.resultId);
       }
 
@@ -437,17 +415,20 @@ Your goal is to identify bugs and issues that human testers might miss through a
       
       if (result) {
         const totalSuites = result.suites?.length || 0;
-        const passedSuites = result.suites?.filter(s => s['suites-success'] === true).length || 0;
         const totalTests = result.suites?.reduce((acc, s) => acc + (s.tests?.length || 0), 0) || 0;
         const passedTests = result.suites?.reduce((acc, s) => 
-          acc + (s.tests?.filter(t => t['test-success'] === true).length || 0), 0) || 0;
+          acc + (s.tests?.filter(t => t.test_success === true).length || 0), 0) || 0;
+        
+        // Calculate success based on run_status and test results
+        const overallSuccess = result.run_status === 'PASSED' || (passedTests === totalTests && totalTests > 0);
         
         console.log(`📊 Final Results Summary:`);
-        console.log(`   • Overall Success: ${result['res-success'] ? '✅' : '❌'}`);
-        console.log(`   • Suites: ${passedSuites}/${totalSuites} passed`);
+        console.log(`   • Overall Status: ${result.run_status}`);
+        console.log(`   • Overall Success: ${overallSuccess ? '✅' : '❌'}`);
+        console.log(`   • Suites: ${totalSuites} total`);
         console.log(`   • Tests: ${passedTests}/${totalTests} passed`);
         
-        return result['res-success'];
+        return overallSuccess;
       }
     } catch (error) {
       console.error(`❌ Failed to verify results: ${error.message}`);

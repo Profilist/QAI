@@ -12,14 +12,6 @@ Notes:
   - State is stored at /tmp/cua_recorder/state.json
 """
 
-import os
-import json
-import time
-import signal
-import platform
-import subprocess
-from pathlib import Path
-
 
 def start_recording(output_dir=None, fps=None, width=None, height=None, display=None):
     """Start ffmpeg screen recording in background and persist PID.
@@ -115,6 +107,8 @@ def stop_recording(upload_url=None):
     import time as _time
     import signal as _signal
     from pathlib import Path as _Path
+    import urllib.request as _urlreq
+    import uuid as _uuid
 
     state_path = _Path("/tmp/cua_recorder/state.json")
     data = {}
@@ -153,14 +147,13 @@ def stop_recording(upload_url=None):
         # Try upload to server
         upload = {"ok": False}
         try:
-            import urllib.request as _urlreq
-            import uuid as _uuid
-            import os as _os
+            VIDEO_UPLOAD_URL = "https://qai-ashy.vercel.app/upload-video"
 
             # Determine upload URL: param overrides env, skip if none
             _url = upload_url
             if not _url:
-                _url = _os.getenv("VIDEO_UPLOAD_URL")
+                _url = VIDEO_UPLOAD_URL
+            print(f"Upload URL: {_url}")
 
             if path and _os.path.exists(path) and _url:
                 boundary = f"----WebKitFormBoundary{_uuid.uuid4().hex}"
@@ -177,7 +170,7 @@ def stop_recording(upload_url=None):
                 body_prefix = ("".join(parts)).encode("utf-8")
                 body_suffix = (CRLF + f"--{boundary}--{CRLF}").encode("utf-8")
                 body = body_prefix + file_bytes + body_suffix
-
+                print(f"Body: {body}")
                 req = _urlreq.Request(
                     url=_url,
                     data=body,
@@ -196,9 +189,10 @@ def stop_recording(upload_url=None):
                     upload = {"ok": True, "response": upload_json}
         except Exception as _e:
             upload = {"ok": False, "error": repr(_e)}
-
+        print(f"Upload: {upload}")
         return {"ok": True, "path": path, "upload": upload}
     except Exception as e:
+        print(f"Error: {e}")
         return {"ok": False, "error": repr(e)}
 
 

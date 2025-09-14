@@ -1,7 +1,7 @@
 from computer import Computer
 import os
 from dotenv import load_dotenv, find_dotenv
-import record_lib
+from ..agents.record import start_recording, stop_recording
 import asyncio
 
 load_dotenv(find_dotenv())
@@ -19,10 +19,10 @@ async def main():
         api_key=api_key
     ) as computer:
         await computer.venv_install("demo_venv", [])
-        await computer.venv_exec("demo_venv", record_lib.start_recording, output_dir="/tmp/replays", fps=5)
+        await computer.venv_exec("demo_venv", start_recording, output_dir="/tmp/replays", fps=5)
         
         await asyncio.sleep(5)
         
-        await computer.venv_exec("demo_venv", record_lib.stop_recording)
+        await computer.venv_exec("demo_venv", stop_recording)
 
 asyncio.run(main())

@@ -2,7 +2,7 @@ import asyncio
 import os
 from dotenv import load_dotenv, find_dotenv
 
-from agents.runner import run_agents
+from ..agents.runner import run_agents
 
 
 def main() -> None:
