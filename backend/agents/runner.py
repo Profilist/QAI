@@ -30,6 +30,7 @@ class RunStatus(Enum):
 load_dotenv()
 
 async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
+    print(f"SPEC: {spec}")
     # Setup CUA agent
     model = spec.get("model") or os.getenv("CUA_MODEL", "claude-sonnet-4-20250514")
     budget = spec.get("budget", 5.0)
@@ -47,7 +48,8 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
     
     # Setup tests
     tests = normalize_tests(spec)
-
+    print(f"TESTS: {tests}")
+    
     async def _execute() -> Dict[str, Any]:
         # Results from all tests from the suite
         suite_results: List[Dict[str, Any]] = []
@@ -77,6 +79,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                 pass
 
             for test in tests:
+                print(f"TEST: {test}")
                 test_name = test.get("name", "test")
                 test_instructions = test.get("instructions") or []
                 
@@ -96,7 +99,9 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     print(f"[Agent {suite_id}] recording start failed for {test_name}: {_e}")
                     
                 try:
+                    print(f"TEST INSTRUCTIONS: {test_instructions}")
                     async for result in agent.run(test_instructions):
+                        print(f"RESULT: {result}")
                         for item in result.get("output", []):
                             # Add agent's current condensed steps
                             test_agent_steps = process_item(item, suite_id, test_agent_steps)
