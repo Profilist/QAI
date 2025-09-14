@@ -61,7 +61,7 @@ async def get_or_create_test(suite_id: int, name: str) -> Optional[int]:
 			"suite_id": suite_id,
 			"name": name,
 			"steps": [],
-			"run_status": "RUNNING",
+			"run_status": "QUEUED",
 			"test_success": None,
 		}
 		ins = supabase.table('tests').insert(payload).execute()

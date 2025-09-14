@@ -20,7 +20,7 @@ from record import start_recording, stop_recording
 
 class RunStatus(Enum):
     QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
+    RUNNING = "RUNNING" 
     PASSED = "PASSED"
     FAILED = "FAILED"
 

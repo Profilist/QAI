@@ -226,7 +226,7 @@ Generate focused test scenarios for autonomous agents.`
       if (this.resultId) {
         await this.supabase
           .from('results')
-          .update({ 'run_status': 'FAILED' })
+          .update({ run_status: 'FAILED' })
           .eq('id', this.resultId);
       }
       
@@ -241,7 +241,7 @@ Generate focused test scenarios for autonomous agents.`
         'pr-link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
         'pr_name': `PR #${this.prNumber}`,
         'overall_result': {},
-        'run_status': 'PENDING'
+        'run_status': 'QUEUED'
       };
 
       const { data: resultData, error: resultError } = await this.supabase
@@ -292,7 +292,7 @@ Generate focused test scenarios for autonomous agents.`
           suite_id: suiteData.id, // Foreign key to suites table
           name: scenario.description,
           test_success: null,
-          run_status: 'PENDING',
+          run_status: 'QUEUED',
           steps: []
         }));
 
@@ -318,8 +318,8 @@ Generate focused test scenarios for autonomous agents.`
         const { error } = await this.supabase
           .from('tests')
           .update({
-            'test_success': result.success,
-            'run_status': result.success ? 'PASSED' : 'FAILED'
+            test_success: result.success,
+            run_status: result.success ? 'PASSED' : 'FAILED'
           })
           .eq('name', result.scenario.description);
 
@@ -361,8 +361,8 @@ Generate focused test scenarios for autonomous agents.`
         await this.supabase
           .from('results')
           .update({ 
-            'run_status': allTestsPassed ? 'PASSED' : 'FAILED',
-            'overall_result': { passed: passedTests, total: totalTests }
+            run_status: allTestsPassed ? 'PASSED' : 'FAILED',
+            overall_result: { passed: passedTests, total: totalTests }
           })
           .eq('id', this.resultId);
       }
