@@ -415,5 +415,5 @@ async def root():
     }
 
 # Export the FastAPI app for Vercel
-handler = app
-app_handler = app
+from mangum import Mangum
+handler = Mangum(app)

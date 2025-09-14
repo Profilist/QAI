@@ -6,3 +6,4 @@ typing-extensions>=4.12.2
 cua-agent>=0.4.31
 cua-computer>=0.4.5
 supabase>=2.18.1
+mangum>=0.17.0
