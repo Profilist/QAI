@@ -85,6 +85,8 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                 instructions=build_agent_instructions(tests, spec),
                 )
             
+            await computer.venv_install("recording_venv", [])
+            
             # Open the browser before starting agent steps
             try:
                 await computer.interface.left_click(536, 742)
@@ -107,7 +109,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                 # Start recording inside VM
                 try:
                     remote_dir = make_remote_recording_dir(suite_id, test_name)
-                    await computer.venv_exec("demo_venv", start_recording, output_dir=remote_dir, fps=5)
+                    await computer.venv_exec("recording_venv", start_recording, output_dir=remote_dir, fps=5)
                     print(f"[Agent {suite_id}] recording started for {test_name}")
                 except Exception as _e:
                     print(f"[Agent {suite_id}] recording start failed for {test_name}: {_e}")
@@ -145,7 +147,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     
                     # Stop recording and get S3 URL
                     try:
-                        recording_stop = await computer.venv_exec("demo_venv", stop_recording)
+                        recording_stop = await computer.venv_exec("recording_venv", stop_recording)
                         if isinstance(recording_stop, dict):
                             upload = recording_stop.get("upload") or {}
                             resp = upload.get("response") or {}
