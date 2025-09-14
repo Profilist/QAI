@@ -10,9 +10,9 @@ def main() -> None:
 
     specs = [
         {
-            "persona": "navigation",
+            "name": "navigation",
+            "suite_id": 1,
             "container_name": os.getenv("CUA_CONTAINER_NAME"),
-            "suite": "navigation",
             "tests": [
                 {
                     "name": "admissions-header",
@@ -20,7 +20,7 @@ def main() -> None:
                         {
                             "role": "user",
                             "content": (
-                                "Go to https://uwaterloo.ca. "
+                                "Go to http://myproject123.io"
                                 "Click the header link labeled \"Admissions\". "
                                 "Confirm that the page you land on is related to Admissions."
                             ),
@@ -42,9 +42,9 @@ def main() -> None:
             ],
         },
         {
-            "persona": "events",
-            "container_name": os.getenv("CUA_CONTAINER_NAME2") or os.getenv("CUA_CONTAINER_NAME"),
-            "suite": "events",
+            "name": "events",
+            "suite_id": 2,
+            "container_name": os.getenv("CUA_CONTAINER_NAME2"),
             "tests": [
                 {
                     "name": "first-event",
@@ -62,7 +62,9 @@ def main() -> None:
         },
     ]
 
-    summary = asyncio.run(run_agents(specs))
+    pr_name = os.getenv("PR_NAME", "local-dev")
+    pr_link = os.getenv("PR_LINK", "http://localhost")
+    summary = asyncio.run(run_agents(specs, pr_name, pr_link))
     print(summary)
 
 

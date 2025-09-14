@@ -55,7 +55,15 @@ CODEBASE: ${codebaseSummary}
 PR: ${pr.title} - ${pr.body || 'No description'}
 CHANGES: ${diff}
 
-Generate focused test scenarios for autonomous agents.`
+Generate focused test scenarios for autonomous agents.
+
+Constraints and guidance:
+- Use at most 4 distinct test suites. Choose categories that best partition the behaviors changed by this PR (ex. Authentication, Navigation, New About Page, etc.).
+- For EACH suite, prefer 2–3 high-value tests when meaningful, ideally E2E tests that a human would miss (think edge cases, race conditions, etc.). Aim for a total of ~6–10 scenarios overall, balancing coverage and noise.
+- Do NOT create trivial or duplicative scenarios. Avoid superficial variations (e.g., same flow with only a color change). Deduplicate aggressively.
+- If there is truly only one meaningful area to test, produce at least 2 complementary tests for that same persona (e.g., happy path vs clear edge/error path) rather than only one total scenario.
+
+For EACH scenario, also include a concise but rich summary (1–3 sentences) that gives the agent context and the precise objective to carry out the test efficiently. The summary could read like: "On <deployment url>, you are testing <feature or flow>; in this test, you <core action and intent> to validate <expected behavior/validation>".`
       }],
       response_format: {
         type: "json_schema",
@@ -73,9 +81,10 @@ Generate focused test scenarios for autonomous agents.`
                     priority: { type: "string", enum: ["high", "medium", "low"] },
                     type: { type: "string", enum: ["ui", "api", "integration", "e2e"] },
                     persona: { type: "string" },
-                    steps: { type: "array", items: { type: "string" } }
+                    steps: { type: "array", items: { type: "string" } },
+                    summary: { type: "string" }
                   },
-                  required: ["description", "priority", "type", "persona", "steps"]
+                  required: ["description", "priority", "type", "persona", "steps", "summary"]
                 }
               }
             }
@@ -84,7 +93,18 @@ Generate focused test scenarios for autonomous agents.`
       }
     });
 
-    const scenarios = completion.choices[0].message.parsed.scenarios;
+    let parsedScenarios = completion.choices[0].message.parsed.scenarios;
+    // Hard cap to 4 suites (personas) to match available containers
+    if (Array.isArray(parsedScenarios) && parsedScenarios.length > 4) {
+      parsedScenarios = parsedScenarios.slice(0, 4);
+    }
+    const deploymentUrl = process.env.DEPLOYMENT_URL || 'the app';
+    const scenarios = parsedScenarios.map(s => ({
+      ...s,
+      summary: s.summary && typeof s.summary === 'string' && s.summary.trim() 
+        ? s.summary 
+        : `On ${deploymentUrl}, you are testing ${s.type || 'a'} scenario: ${s.description}. In this test, follow the steps to validate the expected behavior and surface any validation or UX issues.`,
+    }));
     this.saveFile('test-scenarios.json', scenarios);
     console.log(`✅ Generated ${scenarios.length} test scenarios`);
     
@@ -102,7 +122,7 @@ Generate focused test scenarios for autonomous agents.`
     
     try {
       // Use QAI API endpoint instead of running agents locally
-      console.log(`🤖 Running tests through QAI API endpoint...`);
+        console.log(`🤖 Running tests through QAI API endpoint...`);
       
       // Check if QAI_ENDPOINT is configured
       if (!process.env.QAI_ENDPOINT) {
@@ -114,87 +134,26 @@ Generate focused test scenarios for autonomous agents.`
         throw new Error('No result_id available - database upload may have failed');
       }
       
-      // Get suites for this result to run agents
-      const { data: suites } = await this.supabase
-        .from('suites')
-        .select('id, name')
-        .eq('result_id', this.resultId);
-      
-      if (!suites || suites.length === 0) {
-        throw new Error('No suites found for this result');
-      }
-      
-      console.log(`🏃 Running ${suites.length} agent suites via API...`);
-      
-      const results = [];
+      // Call new single-shot endpoint to run all suites for this result
       const agentTimeout = parseInt(process.env.AGENT_TIMEOUT || '600000');
-      
-      for (const suite of suites) {
-        console.log(`🤖 Calling API for suite: ${suite.name} (ID: ${suite.id})`);
-        
-        try {
-          // Call the QAI API endpoint to run the suite
-          const response = await axios.post(
-            `${process.env.QAI_ENDPOINT}/run-suite`,
-            { suite_id: suite.id },
-            { 
-              timeout: agentTimeout + 60000, // API timeout + 1 minute buffer
-              headers: { 'Content-Type': 'application/json' }
-            }
-          );
-          
-          if (response.data.status === 'success') {
-            console.log(`✅ Suite ${suite.id} completed successfully via API`);
-            results.push({
-              suite_id: suite.id,
-              suite_name: suite.name,
-              success: true,
-              api_response: response.data
-            });
-          } else {
-            throw new Error(`API returned non-success status: ${response.data.status}`);
-          }
-          
-        } catch (error) {
-          console.error(`❌ Suite ${suite.id} API call failed: ${error.message}`);
-          
-          let errorMessage = error.message;
-          if (error.response) {
-            errorMessage = `HTTP ${error.response.status}: ${error.response.data?.detail || error.response.statusText}`;
-          } else if (error.code === 'ECONNREFUSED') {
-            errorMessage = 'Cannot connect to QAI API endpoint';
-          }
-          
-          results.push({
-            suite_id: suite.id,
-            suite_name: suite.name,
-            success: false,
-            error: errorMessage
-          });
+      console.log(`Visit https://qai-zeta.vercel.app/${this.resultId}/test-suites to see it live!`);
+      console.log(`🏃 Calling /run-result for result_id=${this.resultId} ...`);
+      const response = await axios.post(
+        `${process.env.QAI_ENDPOINT}/run-result`,
+        { result_id: this.resultId },
+        {
+          timeout: agentTimeout + 60000,
+          headers: { 'Content-Type': 'application/json' }
         }
-      }
-      
-      console.log(`✅ Completed ${results.length} agent suite API calls`);
-      
-      this.saveFile('test-results.json', results);
+      );
 
-      const passed = results.filter(r => r.success).length;
-      const failed = results.length - passed;
-      
-      console.log(`📊 API Results: ${passed}/${results.length} suites passed`);
-      
-      if (failed > 0) {
-        console.log(`❌ Failed suites:`);
-        results.filter(r => !r.success).forEach(result => {
-          console.log(`   • ${result.suite_name}: ${result.error || 'Failed'}`);
-        });
+      if (response.data?.status !== 'success') {
+        throw new Error(`API returned non-success status: ${response.data?.status || 'unknown'}`);
       }
+      console.log("Response data:", response.data);
 
-      console.log(`💾 Database results updated by QAI API system`);
-      
       // Verify final database state
       const finalSuccess = await this.verifyFinalResults();
-      
       console.log(`::set-output name=success::${finalSuccess}`);
       return finalSuccess;
     } catch (error) {
@@ -216,10 +175,10 @@ Generate focused test scenarios for autonomous agents.`
     try {
       // First, create the results record (PR level)
       const prData = {
-        'pr-link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
+        'pr_link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
         'pr_name': `PR #${this.prNumber}`,
         'overall_result': {},
-        'run_status': 'QUEUED'
+        'run_status': 'RUNNING'
       };
 
       const { data: resultData, error: resultError } = await this.supabase
@@ -243,10 +202,13 @@ Generate focused test scenarios for autonomous agents.`
         groups[persona].push(scenario);
         return groups;
       }, {});
+      // Enforce max 4 suites (personas)
+      const limitedPersonas = Object.keys(personaGroups).slice(0, 4);
 
       // Create suite records (one per persona/agent)
       this.suiteIds = {};
-      for (const [persona, personaScenarios] of Object.entries(personaGroups)) {
+      for (const persona of limitedPersonas) {
+        const personaScenarios = personaGroups[persona];
         const suiteRecord = {
           result_id: this.resultId, // Foreign key to results table
           name: `${persona} Agent Suite`
@@ -269,8 +231,9 @@ Generate focused test scenarios for autonomous agents.`
         const testRecords = personaScenarios.map(scenario => ({
           suite_id: suiteData.id, // Foreign key to suites table
           name: scenario.description,
+          summary: scenario.summary,
           test_success: null,
-          run_status: 'QUEUED',
+          run_status: 'RUNNING',
           steps: []
         }));
 
@@ -340,7 +303,7 @@ Generate focused test scenarios for autonomous agents.`
           .from('results')
           .update({ 
             run_status: allTestsPassed ? 'PASSED' : 'FAILED',
-            overall_result: { passed: passedTests, total: totalTests }
+            overall_result: { passed: passedTests, failed: totalTests - passedTests, total: totalTests }
           })
           .eq('id', this.resultId);
       }
@@ -412,6 +375,8 @@ Your goal is to identify bugs and issues that human testers might miss through a
         .select('*, suites(*, tests(*))')
         .eq('id', this.resultId)
         .single();
+        
+      console.log("Result:", result);
       
       if (result) {
         const totalSuites = result.suites?.length || 0;

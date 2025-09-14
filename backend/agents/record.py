@@ -1,11 +1,6 @@
 """
 FFmpeg screen recorder helpers for Linux VMs (X11) without a web server.
 
-Usage with computer.venv_exec:
-  await computer.venv_exec("demo_venv", record_lib.start_recording, output_dir="/var/replays", fps=5)
-  # ...
-  await computer.venv_exec("demo_venv", record_lib.stop_recording)
-
 Notes:
   - Each function is self-contained (no module-level helper dependencies),
     so execution environments that serialize only the function body will work.
@@ -153,7 +148,7 @@ def stop_recording(upload_url=None):
             _url = upload_url
             if not _url:
                 _url = VIDEO_UPLOAD_URL
-            print(f"Upload URL: {_url}")
+            # print(f"Upload URL: {_url}")
 
             if path and _os.path.exists(path) and _url:
                 boundary = f"----WebKitFormBoundary{_uuid.uuid4().hex}"
@@ -170,7 +165,7 @@ def stop_recording(upload_url=None):
                 body_prefix = ("".join(parts)).encode("utf-8")
                 body_suffix = (CRLF + f"--{boundary}--{CRLF}").encode("utf-8")
                 body = body_prefix + file_bytes + body_suffix
-                print(f"Body: {body}")
+                # print(f"Body: {body}")
                 req = _urlreq.Request(
                     url=_url,
                     data=body,
@@ -218,15 +213,3 @@ def status():
         except Exception:
             running = False
     return {"ok": True, "running": running, "path": data.get("path"), "pid": pid, "fps": data.get("fps")}
-
-
-def _pid_alive(pid):
-    # Kept for compatibility if imported directly; not used by venv_exec paths
-    import os as _os
-    try:
-        _os.kill(pid, 0)
-        return True
-    except Exception:
-        return False
-
-

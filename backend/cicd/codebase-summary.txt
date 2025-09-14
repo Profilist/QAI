@@ -9,7 +9,7 @@ Core Components:
 
 Technology Stack:
 - Backend: Node.js, Python (for agents)
-- Database: MongoDB for test data, S3 for video replays
+- Database: Supabase for test data, S3 for video replays
 - Agents: Computer-use agents with screen recording capabilities
 - LLM: OpenAI GPT for test scenario generation
 

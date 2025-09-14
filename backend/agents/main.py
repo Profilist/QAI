@@ -2,18 +2,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import asyncio
 import os
 from dotenv import load_dotenv
 
-from runner import run_single_agent, run_agents, run_qai_tests
+from runner import run_agents, run_qai_tests, run_suites_for_result
 from database import (
-    get_or_create_test,
-    create_result,
-    set_suite_result_id,
-    get_suite_with_tests,
-    update_test_fields,
-    append_test_step,
     _has_client
 )
 
@@ -74,257 +67,22 @@ class MultiAgentRunRequest(BaseModel):
     pr_name: str
     pr_link: str
 
+class RunResultRequest(BaseModel):
+    result_id: int
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {
+    db_connected = _has_client()
+    print(f"[API] Health check requested - Database connected: {db_connected}")
+    
+    response = {
         "status": "healthy",
-        "database_connected": _has_client(),
+        "database_connected": db_connected,
         "version": "1.0.0"
     }
-
-# Results endpoints (matching API.md)
-
-@app.post("/results")
-async def create_result_endpoint(request: CreateResultRequest):
-    """Create a new result (PR test run)"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        # Use the database function to create result
-        result_id = await create_result(request.prName, request.prLink, {}, "PENDING")
-        if result_id is None:
-            raise HTTPException(status_code=500, detail="Failed to create result")
-        
-        # Return response matching API.md format
-        return {
-            "success": True,
-            "message": "Result created successfully",
-            "data": {
-                "id": result_id,
-                "pr-link": request.prLink,
-                "pr-name": request.prName,
-                "res-success": False
-            }
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create result: {str(e)}")
-
-@app.patch("/results/{result_id}")
-async def update_result_endpoint(result_id: int, request: UpdateResultRequest):
-    """Update result success status"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        response = supabase.table('results').update({
-            'res-success': request.resSuccess
-        }).eq('id', result_id).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Result not found")
-        
-        return {
-            "success": True,
-            "message": "Result updated successfully",
-            "data": response.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update result: {str(e)}")
-
-@app.get("/results")
-async def get_all_results():
-    """Get all results"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        response = supabase.table('results').select('*').order('created_at', desc=True).execute()
-        
-        return {
-            "success": True,
-            "data": response.data or []
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch results: {str(e)}")
-
-# Suite endpoints
-
-@app.post("/suites")
-async def create_suite_endpoint(request: CreateSuiteRequest):
-    """Create a new test suite"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        suite_data = {
-            'result_id': request.resultId,
-            'name': request.name,
-            'suites-success': request.suitesSuccess
-        }
-        if request.s3Link:
-            suite_data['s3-link'] = request.s3Link
-        
-        response = supabase.table('suites').insert([suite_data]).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to create suite")
-        
-        return {
-            "success": True,
-            "message": "Suite created successfully",
-            "data": response.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create suite: {str(e)}")
-
-@app.patch("/suites/{suite_id}")
-async def update_suite_endpoint(suite_id: int, request: UpdateSuiteRequest):
-    """Update suite success status and/or S3 link"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        update_data = {}
-        if request.suitesSuccess is not None:
-            update_data['suites-success'] = request.suitesSuccess
-        if request.s3Link is not None:
-            update_data['s3-link'] = request.s3Link
-        
-        if not update_data:
-            raise HTTPException(status_code=400, detail="No update data provided")
-        
-        response = supabase.table('suites').update(update_data).eq('id', suite_id).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Suite not found")
-        
-        return {
-            "success": True,
-            "message": "Suite updated successfully",
-            "data": response.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update suite: {str(e)}")
-
-@app.get("/results/{result_id}/suites")
-async def get_suites_for_result(result_id: int):
-    """Get suites for a specific result"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        response = supabase.table('suites').select('*').eq('result_id', result_id).order('created_at', desc=True).execute()
-        
-        return {
-            "success": True,
-            "data": response.data or []
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch suites: {str(e)}")
-
-# Test endpoints
-
-@app.post("/tests")
-async def create_test_endpoint(request: CreateTestRequest):
-    """Create a new individual test"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        test_data = {
-            'suite_id': request.suiteId,
-            'name': request.name,
-            'summary': request.summary,
-            'test-success': request.testSuccess
-        }
-        
-        response = supabase.table('tests').insert([test_data]).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to create test")
-        
-        return {
-            "success": True,
-            "message": "Test created successfully",
-            "data": response.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create test: {str(e)}")
-
-@app.patch("/tests/{test_id}")
-async def update_test_endpoint(test_id: int, request: UpdateTestRequest):
-    """Update test success status and/or summary"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        update_data = {}
-        if request.testSuccess is not None:
-            update_data['test-success'] = request.testSuccess
-        if request.summary is not None:
-            update_data['summary'] = request.summary
-        
-        if not update_data:
-            raise HTTPException(status_code=400, detail="No update data provided")
-        
-        response = supabase.table('tests').update(update_data).eq('id', test_id).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Test not found")
-        
-        return {
-            "success": True,
-            "message": "Test updated successfully",
-            "data": response.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update test: {str(e)}")
-
-@app.get("/suites/{suite_id}/tests")
-async def get_tests_for_suite(suite_id: int):
-    """Get tests for a specific suite"""
-    try:
-        if not _has_client():
-            raise HTTPException(status_code=500, detail="Database not configured")
-        
-        from database import supabase
-        
-        response = supabase.table('tests').select('*').eq('suite_id', suite_id).order('created_at', desc=True).execute()
-        
-        return {
-            "success": True,
-            "data": response.data or []
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch tests: {str(e)}")
+    print(f"[API] Health check response: {response}")
+    return response
 
 # Agent execution endpoints
 
@@ -333,42 +91,48 @@ async def run_suite_endpoint(request: RunSuiteRequest):
     """
     Run a test suite by ID - This is the main endpoint called by the CICD pipeline
     """
+    suite_id = request.suite_id
+    print(f"[API] Starting suite execution for suite_id: {suite_id}")
+    print(f"[API] Request received at: {__import__('datetime').datetime.now().isoformat()}")
+    
     try:
-        result = await run_qai_tests(request.suite_id)
+        print(f"[API] Calling run_qai_tests for suite_id: {suite_id}")
+        result = await run_qai_tests(suite_id)
+        print(f"[API] run_qai_tests completed for suite_id: {suite_id}")
+        print(f"[API] Result status: {result.get('agent_result', {}).get('status', 'unknown')}")
         
         if result['agent_result']['status'] == 'success':
-            return {
+            print(f"[API] Suite {suite_id} executed successfully")
+            print(f"[API] Tests run: {result['agent_result'].get('tests_run', 0)}")
+            
+            response = {
                 "status": "success",
-                "message": f"Suite {request.suite_id} executed successfully",
+                "message": f"Suite {suite_id} executed successfully",
                 "data": result
             }
+            print(f"[API] Returning success response for suite_id: {suite_id}")
+            return response
         else:
+            error_msg = result['agent_result'].get('error', 'Unknown error')
+            print(f"[API] Suite execution failed for suite_id: {suite_id}")
+            print(f"[API] Error: {error_msg}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Suite execution failed: {result['agent_result'].get('error', 'Unknown error')}"
+                detail=f"Suite execution failed: {error_msg}"
             )
-    except HTTPException:
+    except HTTPException as he:
+        print(f"[API] HTTPException raised for suite_id: {suite_id}")
+        print(f"[API] HTTPException detail: {he.detail}")
+        print(f"[API] HTTPException status_code: {he.status_code}")
         raise
     except Exception as e:
+        print(f"[API] Unexpected error for suite_id: {suite_id}")
+        print(f"[API] Exception type: {type(e).__name__}")
+        print(f"[API] Exception message: {str(e)}")
+        print(f"[API] Exception details: {e}")
         raise HTTPException(status_code=500, detail=f"Suite execution failed: {str(e)}")
-
-@app.post("/run-agent")
-async def run_agent_endpoint(request: AgentRunRequest):
-    """Run a single agent test (legacy endpoint)"""
-    try:
-        result = await run_single_agent(request.spec)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent execution failed: {str(e)}")
-
-@app.post("/run-agents")
-async def run_agents_endpoint(request: MultiAgentRunRequest):
-    """Run multiple agent tests (legacy endpoint)"""
-    try:
-        result = await run_agents(request.test_specs, request.pr_name, request.pr_link)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agents execution failed: {str(e)}")
+    finally:
+        print(f"[API] Request completed for suite_id: {suite_id}")
 
 @app.get("/")
 async def root():
@@ -378,14 +142,56 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",
-            "results": "/results",
-            "suites": "/suites", 
-            "tests": "/tests",
-            "run_suite": "/run-suite"
+            "run_suite": "/run-suite",
+            "run_result": "/run-result",
+            "run_agents": "/run-agents"
         }
     }
+
+
+@app.post("/run-result")
+async def run_result_endpoint(request: RunResultRequest):
+    """Run all suites and tests for a given result_id."""
+    result_id = request.result_id
+    print(f"[API] Starting result execution for result_id: {result_id}")
+    try:
+        summary = await run_suites_for_result(result_id)
+        status = summary.get("run_status")
+        if status == "PASSED" or status == "FAILED":
+            return {
+                "status": "success",
+                "message": f"Result {result_id} executed",
+                "data": summary,
+            }
+        return {
+            "status": "success",
+            "message": f"Result {result_id} executed",
+            "data": summary,
+        }
+    except Exception as e:
+        print(f"[API] run_result failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Result execution failed: {str(e)}")
+
+
+@app.post("/run-agents")
+async def run_agents_endpoint(request: MultiAgentRunRequest):
+    """Run multiple agent suites provided directly as test_specs along with PR metadata."""
+    try:
+        summary = await run_agents(request.test_specs, request.pr_name, request.pr_link)
+        return {
+            "status": "success",
+            "message": "Agents executed",
+            "data": summary,
+        }
+    except Exception as e:
+        print(f"[API] run_agents failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Agents execution failed: {str(e)}")
 
 # For Vercel deployment
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    port = int(os.getenv("PORT", "8000"))
+    print(f"[API] Starting QAI Agent Runner API on port {port}")
+    print(f"[API] Database connection status: {_has_client()}")
+    print(f"[API] Environment loaded from .env: {os.getenv('CUA_API_KEY', 'Not set')[:10]}...")
+    uvicorn.run(app, host="0.0.0.0", port=port)

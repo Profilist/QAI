@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { createClient } = require('@supabase/supabase-js');
@@ -26,6 +27,9 @@ const supabase = createClient(
 );
 
 app.use(express.json());
+// Enable CORS for all origins and handle preflight
+app.use(cors());
+// app.options('*', cors());
 
 // API endpoints for managing results, suites, and tests
 
@@ -170,7 +174,7 @@ app.get('/results/:id/suites', async (req, res) => {
     const { data, error } = await supabase
       .from('suites')
       .select('*')
-      .eq('id', id)
+      .eq('result_id', id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -244,6 +248,30 @@ app.patch('/tests/:id', async (req, res) => {
   }
 });
 
+// Get single suite 
+app.get('/suites/:suiteId', async (req, res) => {
+  try {
+    const { suiteId } = req.params;
+    
+    const { data, error } = await supabase
+      .from('suites')
+      .select('*')
+      .eq('id', suiteId)
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Error fetching suite:', error);
+    res.status(500).json({ error: 'Failed to fetch suite' });
+  }
+});
+
+
 // Get tests for a specific suite
 app.get('/suites/:id/tests', async (req, res) => {
   try {
@@ -252,7 +280,7 @@ app.get('/suites/:id/tests', async (req, res) => {
     const { data, error } = await supabase
       .from('tests')
       .select('*')
-      .eq('id', id)
+      .eq('suite_id', id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
