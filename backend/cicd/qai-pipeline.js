@@ -113,7 +113,6 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
     try {
       // Use QAI API endpoint instead of running agents locally
         console.log(`🤖 Running tests through QAI API endpoint...`);
-        console.log("QAI_ENDPOINT:", process.env.QAI_ENDPOINT);
       
       // Check if QAI_ENDPOINT is configured
       if (!process.env.QAI_ENDPOINT) {
@@ -136,7 +135,6 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
           headers: { 'Content-Type': 'application/json' }
         }
       );
-      console.log("Response:", response);
 
       if (response.data?.status !== 'success') {
         throw new Error(`API returned non-success status: ${response.data?.status || 'unknown'}`);

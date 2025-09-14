@@ -125,7 +125,12 @@ async def get_suite_with_tests(suite_id: int) -> Optional[Dict[str, Any]]:
 		for test in tests:
 			formatted_tests.append({
 				'name': test.get('name', 'Untitled Test'),
-				'instructions': test.get('summary', '').split('\n') if test.get('summary') else [{'role': 'user', 'content': 'Verify that the browser is open.'}]
+				'instructions': [
+					{
+						'role': 'user',
+						'content': (test.get('summary') or 'Verify that the browser is open.')
+					}
+				]
 			})
 		
 		return {
@@ -176,7 +181,12 @@ async def get_suites_with_tests_for_result(result_id: int) -> List[Dict[str, Any
 			for t in tests:
 				formatted_tests.append({
 					'name': t.get('name', 'Untitled Test'),
-					'instructions': t.get('summary', '').split('\n') if t.get('summary') else [{'role': 'user', 'content': 'Verify that the browser is open.'}],
+					'instructions': [
+						{
+							'role': 'user',
+							'content': (t.get('summary') or 'Verify that the browser is open.')
+						}
+					],
 				})
 			specs.append({
 				'suite_id': suite_id,
