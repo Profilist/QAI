@@ -61,7 +61,7 @@ const help: Route[] = [
 function RouteLink({ route, active }: { route: Route; active: boolean }) {
   return (
     <li className={clsx("text-xl", active && "underline text-accent")}>
-      <a href={route.href}>{route.text}</a>
+      <a className="hover:underline" href={route.href}>{route.text}</a>
     </li>
   );
 }

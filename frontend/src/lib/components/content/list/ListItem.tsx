@@ -7,13 +7,7 @@ export default function ListItem({
   ...props
 }: ForwardPropsWithRefAndChildren<"li">) {
   return (
-    <li
-      {...props}
-      className={clsx(
-        "inline-block pl-3 pr-4 py-4 card border-l-[6px] text-xl w-full",
-        className
-      )}
-    >
+    <li {...props} className={clsx("text-xl w-full p-2 rounded-xl border-outline border-1", className)}>
       {children}
     </li>
   );

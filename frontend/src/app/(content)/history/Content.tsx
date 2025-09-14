@@ -77,7 +77,7 @@ export default function Content({ testRuns }: { testRuns: TestRun[] }) {
       </List>
       <div className="mb-6 flex flex-col gap-4">
         {/* Video */}
-        <div className="card aspect-video"></div>
+        <div className="card aspect-[4/3]"></div>
         {/* Controls */}
       </div>
     </div>

@@ -7,7 +7,7 @@ export default function List({
   ...props
 }: ForwardPropsWithRefAndChildren<"ul">) {
   return (
-    <ul {...props} className={clsx("flex flex-col gap-4", props.className)}>
+    <ul {...props} className={clsx("flex flex-col gap-3", props.className)}>
       {children}
     </ul>
   );

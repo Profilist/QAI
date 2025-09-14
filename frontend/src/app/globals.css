@@ -7,8 +7,18 @@
   --foreground: #242424;
   --off-foreground: #111111;
 
-  --accent: #A480CF;
+  --accent: #a480cf;
   --off-accent: #b497d8;
+
+  --passed: #1b7f37;
+  --failed: #d1242f;
+  --pending: #ceac3d;
+  --queued: #9398a0;
+
+  --off-passed: hsl(137, 65%, 90%);
+  --off-failed: hsl(356, 71%, 90%);
+  --off-pending: hsl(46, 60%, 90%);
+  --off-queued: hsl(217, 6%, 90%);
 
   --outline: #d7d7d7;
 }
@@ -22,6 +32,16 @@
 
   --color-accent: var(--accent);
   --color-off-accent: var(--off-accent);
+
+  --color-passed: var(--passed);
+  --color-failed: var(--failed);
+  --color-pending: var(--pending);
+  --color-queued: var(--queued);
+
+  --color-off-passed: var(--off-passed);
+  --color-off-failed: var(--off-failed);
+  --color-off-pending: var(--off-pending);
+  --color-off-queued: var(--off-queued);
 
   --color-outline: var(--outline);
 
