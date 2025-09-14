@@ -13,10 +13,12 @@ from database import (
     update_test_fields,
     create_result,
     set_suite_result_id,
+    get_suites_with_tests_for_result,
+    update_result_fields,
 )
-from .prompts import build_agent_instructions
-from .utils import normalize_tests, make_remote_recording_dir, process_item, extract_major_steps
-from .record import start_recording, stop_recording
+from prompts import build_agent_instructions
+from utils import normalize_tests, make_remote_recording_dir, process_item, extract_major_steps
+from record import start_recording, stop_recording
 
 class RunStatus(Enum):
     QUEUED = "QUEUED"
@@ -97,6 +99,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                     
                 try:
                     async for result in agent.run(test_instructions):
+                        print(f"WTF HEREHEREHEREHEREHEREHERE {result}")
                         for item in result.get("output", []):
                             # Add agent's current condensed steps
                             test_agent_steps = process_item(item, suite_id, test_agent_steps)
@@ -169,22 +172,28 @@ async def run_qai_tests(suite_id: int) -> Dict[str, Any]:
     
     try:
         # Fetch suite and test data from database
+        print(f"[run_qai_tests] Fetching suite data for suite_id: {suite_id}")
         suite_data = await get_suite_with_tests(suite_id)
         if not suite_data:
+            print(f"[run_qai_tests] Suite {suite_id} not found in database")
             return {
                 'agent_result': {
                     'status': 'failed',
                     'error': f'Suite {suite_id} not found'
                 }
             }
+        print(f"[run_qai_tests] Suite data: {suite_data}")
+        
+        print(f"[run_qai_tests] Retrieved suite data: {suite_data.get('name', 'Unknown')} with {len(suite_data.get('tests', []))} tests")
         
         # Convert database format to agent spec format
         spec = {
             'suite_id': suite_id,
+            'name': suite_data.get('name'),  # Add suite name for build_agent_instructions
             'model': os.getenv("CUA_MODEL", "anthropic/claude-3-5-sonnet-20241022"),
             'budget': 5.0,
             'container_name': os.getenv("CUA_CONTAINER_NAME"),
-            'tests': suite_data.get('tests', [])
+            'tests': suite_data.get('tests')
         }
         
         # Run the agent
@@ -247,3 +256,67 @@ async def run_agents(test_specs: List[Dict[str, Any]], pr_name: str, pr_link: st
     }
     print(json.dumps(summary))
     return summary
+
+
+async def run_suites_for_result(result_id: int) -> Dict[str, Any]:
+    """
+    Fetch all suites/tests for a given result_id and run them together.
+    Updates the existing result row with overall summary and run_status.
+    """
+    try:
+        # Load suite specs for this result
+        specs: List[Dict[str, Any]] = await get_suites_with_tests_for_result(result_id)
+        if not specs:
+            await update_result_fields(result_id, {"run_status": RunStatus.FAILED.value})
+            return {
+                "result_id": result_id,
+                "overall_result": {"passed_tests": 0, "failed_tests": 0, "total_tests": 0},
+                "run_status": RunStatus.FAILED.value,
+                "error": "No suites found for result"
+            }
+
+        # Run each suite's tests concurrently
+        tasks = [run_single_agent(spec) for spec in specs]
+        results: List[Any] = await asyncio.gather(*tasks, return_exceptions=True)
+
+        total_tests = 0
+        passed_tests = 0
+        failed_tests = 0
+        for res in results:
+            if isinstance(res, Exception):
+                # Count as a failed suite with unknown test count
+                continue
+            for t in res:
+                total_tests += 1
+                if t.get("test_success"):
+                    passed_tests += 1
+                else:
+                    failed_tests += 1
+
+        run_status = RunStatus.PASSED if failed_tests == 0 and total_tests > 0 else RunStatus.FAILED
+        overall_result = {
+            "passed_tests": passed_tests,
+            "failed_tests": failed_tests,
+            "total_tests": total_tests,
+        }
+
+        await update_result_fields(result_id, {
+            "overall_result": overall_result,
+            "run_status": run_status.value,
+        })
+
+        summary = {
+            "result_id": result_id,
+            "overall_result": overall_result,
+            "run_status": run_status.value,
+        }
+        print(json.dumps(summary))
+        return summary
+    except Exception as e:
+        await update_result_fields(result_id, {"run_status": RunStatus.FAILED.value})
+        return {
+            "result_id": result_id,
+            "overall_result": {"passed_tests": 0, "failed_tests": 0, "total_tests": 0},
+            "run_status": RunStatus.FAILED.value,
+            "error": str(e),
+        }
