@@ -7,7 +7,7 @@ load_dotenv()
 
 def build_agent_instructions(tests: List[Dict], suite: Dict) -> str:
 	"""Build optimized instructions for autonomous agent testing with concise STEP emissions."""
-	base_url = os.getenv("DEPLOYMENT_URL", "https://staging.example.com")
+	base_url = os.getenv("DEPLOYMENT_URL", "https://www.larris.me/")
 
 	# Create concise, UI-friendly testing instructions
 	instructions = f"""

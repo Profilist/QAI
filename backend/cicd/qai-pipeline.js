@@ -87,7 +87,11 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
       }
     });
 
-    const parsedScenarios = completion.choices[0].message.parsed.scenarios;
+    let parsedScenarios = completion.choices[0].message.parsed.scenarios;
+    // Hard cap to 4 suites (personas) to match available containers
+    if (Array.isArray(parsedScenarios) && parsedScenarios.length > 4) {
+      parsedScenarios = parsedScenarios.slice(0, 4);
+    }
     const deploymentUrl = process.env.DEPLOYMENT_URL || 'the app';
     const scenarios = parsedScenarios.map(s => ({
       ...s,
@@ -191,10 +195,13 @@ For EACH scenario, also include a concise but rich summary (1-3 sentences) that 
         groups[persona].push(scenario);
         return groups;
       }, {});
+      // Enforce max 4 suites (personas)
+      const limitedPersonas = Object.keys(personaGroups).slice(0, 4);
 
       // Create suite records (one per persona/agent)
       this.suiteIds = {};
-      for (const [persona, personaScenarios] of Object.entries(personaGroups)) {
+      for (const persona of limitedPersonas) {
+        const personaScenarios = personaGroups[persona];
         const suiteRecord = {
           result_id: this.resultId, // Foreign key to results table
           name: `${persona} Agent Suite`

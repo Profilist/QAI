@@ -39,7 +39,7 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
     # Setup CUA computer
     os_type = "linux"
     provider_type = "cloud"
-    container_name = spec.get("container_name") or os.getenv("CUA_CONTAINER_NAME")
+    container_name = spec.get("container_name")
     api_key = os.getenv("CUA_API_KEY")
     if not api_key:
         raise RuntimeError("CUA_API_KEY is required")
@@ -276,6 +276,19 @@ async def run_suites_for_result(result_id: int) -> Dict[str, Any]:
                 "run_status": RunStatus.FAILED.value,
                 "error": "No suites found for result"
             }
+            
+        # Assign containers per suite (CUA_CONTAINER_1..4)
+        container_envs: List[str] = []
+        for i in range(1, 5):
+            val = os.getenv(f"CUA_CONTAINER_{i}")
+            if val:
+                container_envs.append(val)
+        if not container_envs:
+            raise RuntimeError("No CUA_CONTAINER_[1-4] variables configured")
+
+        for idx, spec in enumerate(specs):
+            assigned = container_envs[idx] if idx < len(container_envs) else container_envs[-1]
+            spec["container_name"] = assigned
 
         # Run each suite's tests concurrently
         tasks = [run_single_agent(spec) for spec in specs]
