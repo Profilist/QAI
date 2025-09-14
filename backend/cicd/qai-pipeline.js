@@ -136,6 +136,7 @@ For EACH scenario, also include a concise but rich summary (1–3 sentences) tha
       
       // Call new single-shot endpoint to run all suites for this result
       const agentTimeout = parseInt(process.env.AGENT_TIMEOUT || '600000');
+      console.log(`Visit https://qai-zeta.vercel.app/${this.resultId}/test-suites to see it live!`);
       console.log(`🏃 Calling /run-result for result_id=${this.resultId} ...`);
       const response = await axios.post(
         `${process.env.QAI_ENDPOINT}/run-result`,
