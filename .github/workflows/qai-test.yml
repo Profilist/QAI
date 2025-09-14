@@ -43,7 +43,7 @@ jobs:
         cd backend/cicd
         npm run pipeline
       env:
-        PYTHONPATH: ${{ github.workspace }}/backend/agents
+        PYTHONPATH: ${{ github.workspace }}/backend:${{ github.workspace }}/backend/agents
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         QAI_ENDPOINT: ${{ secrets.QAI_ENDPOINT }}
