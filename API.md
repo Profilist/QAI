@@ -25,9 +25,10 @@ Creates a new test result entry for a PR.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:30:00.000Z",
-    "pr-link": "https://github.com/user/repo/pull/123",
-    "pr-name": "Feature: Add user authentication",
-    "res-success": false
+    "pr_link": "https://github.com/user/repo/pull/123",
+    "pr_name": "Feature: Add user authentication",
+    "overall_result": {},
+    "run_status": "RUNNING"
   }
 }
 ```
@@ -52,9 +53,10 @@ Updates the overall success status of a test result.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:30:00.000Z",
-    "pr-link": "https://github.com/user/repo/pull/123",
-    "pr-name": "Feature: Add user authentication",
-    "res-success": true
+    "pr_link": "https://github.com/user/repo/pull/123",
+    "pr_name": "Feature: Add user authentication",
+    "overall_result": {"passed": 8, "failed": 2, "total": 10},
+    "run_status": "PASSED"
   }
 }
 ```
@@ -72,9 +74,10 @@ Retrieves all test results, ordered by creation date (newest first).
     {
       "id": 1,
       "created_at": "2024-01-15T10:30:00.000Z",
-      "pr-link": "https://github.com/user/repo/pull/123",
-      "pr-name": "Feature: Add user authentication",
-      "res-success": true
+      "pr_link": "https://github.com/user/repo/pull/123",
+      "pr_name": "Feature: Add user authentication",
+      "overall_result": {"passed": 8, "failed": 2, "total": 10},
+      "run_status": "PASSED"
     }
   ]
 }
@@ -105,9 +108,8 @@ Creates a new test suite linked to a result.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:35:00.000Z",
-    "name": "Authentication Flow Tests",
-    "s3-link": "https://bucket.s3.amazonaws.com/video_123.mp4",
-    "suites-success": false
+    "result_id": 1,
+    "name": "Authentication Flow Tests"
   }
 }
 ```
@@ -133,9 +135,8 @@ Updates suite success status and/or S3 link.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:35:00.000Z",
-    "name": "Authentication Flow Tests",
-    "s3-link": "https://bucket.s3.amazonaws.com/video_123_updated.mp4",
-    "suites-success": true
+    "result_id": 1,
+    "name": "Authentication Flow Tests"
   }
 }
 ```
@@ -153,9 +154,8 @@ Retrieves all test suites for a specific result.
     {
       "id": 1,
       "created_at": "2024-01-15T10:35:00.000Z",
-      "name": "Authentication Flow Tests",
-      "s3-link": "https://bucket.s3.amazonaws.com/video_123.mp4",
-      "suites-success": true
+      "result_id": 1,
+      "name": "Authentication Flow Tests"
     }
   ]
 }
@@ -186,9 +186,13 @@ Creates a new individual test linked to a suite.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:40:00.000Z",
+    "suite_id": 1,
     "name": "Login with valid credentials",
     "summary": "Test successful login flow with email and password",
-    "test-success": true
+    "test_success": true,
+    "run_status": "RUNNING",
+    "steps": [],
+    "s3_link": null
   }
 }
 ```
@@ -214,9 +218,13 @@ Updates test success status and/or summary.
   "data": {
     "id": 1,
     "created_at": "2024-01-15T10:40:00.000Z",
+    "suite_id": 1,
     "name": "Login with valid credentials",
     "summary": "Test failed due to timeout on login button click",
-    "test-success": false
+    "test_success": false,
+    "run_status": "FAILED",
+    "steps": ["Click Login", "Observe error"],
+    "s3_link": "https://bucket.s3.amazonaws.com/video_123.mp4"
   }
 }
 ```
@@ -234,9 +242,13 @@ Retrieves all individual tests for a specific suite.
     {
       "id": 1,
       "created_at": "2024-01-15T10:40:00.000Z",
+      "suite_id": 1,
       "name": "Login with valid credentials",
       "summary": "Test successful login flow with email and password",
-      "test-success": true
+      "test_success": true,
+      "run_status": "PASSED",
+      "steps": ["Open login page", "Enter credentials", "Submit", "Verify dashboard"],
+      "s3_link": "https://bucket.s3.amazonaws.com/video_123.mp4"
     }
   ]
 }
@@ -296,40 +308,43 @@ Common HTTP status codes:
 ### Results Table
 ```sql
 CREATE TABLE public.results (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  pr-link text,
-  res-success boolean DEFAULT false,
-  pr-name text,
-  CONSTRAINT results_pkey PRIMARY KEY (id)
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  pr_link       text,
+  pr_name       text,
+  overall_result jsonb,
+  run_status    text -- e.g., 'QUEUED' | 'RUNNING' | 'PASSED' | 'FAILED'
 );
 ```
 
 ### Suites Table
 ```sql
 CREATE TABLE public.suites (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  suites-success boolean,
-  name text,
-  s3-link text,
-  CONSTRAINT suites_pkey PRIMARY KEY (id),
-  CONSTRAINT suites_id_fkey FOREIGN KEY (id) REFERENCES public.results(id)
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  result_id    bigint REFERENCES public.results(id) ON DELETE CASCADE,
+  name         text,
 );
 ```
 
 ### Tests Table
 ```sql
 CREATE TABLE public.tests (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  summary text,
-  test-success boolean,
-  name text,
-  CONSTRAINT tests_pkey PRIMARY KEY (id),
-  CONSTRAINT tests_id_fkey FOREIGN KEY (id) REFERENCES public.suites(id)
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  suite_id      bigint REFERENCES public.suites(id) ON DELETE CASCADE,
+  name          text,
+  summary       text,
+  test_success  boolean,
+  run_status    text, -- e.g., 'QUEUED' | 'RUNNING' | 'PASSED' | 'FAILED'
+  steps         jsonb DEFAULT '[]'::jsonb,
+  s3_link      text,
 );
 ```
+
+Note:
+- Foreign keys `suites.result_id` and `tests.suite_id` enable nested selects like `results.select('*, suites(*, tests(*))')`.
+- Column names use snake_case for consistency with the pipeline and backend.
 
 ## Workflow Examples
 
