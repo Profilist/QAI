@@ -21,7 +21,7 @@ async def create_result(pr_name: str, pr_link: str, overall_result: Dict[str, An
 			return None
 		payload = {
 			"pr_name": pr_name,
-			"pr_link": pr_link,
+			"pr-link": pr_link,
 			"overall_result": overall_result,
 			"run_status": run_status,
 		}
@@ -62,6 +62,7 @@ async def get_or_create_test(suite_id: int, name: str) -> Optional[int]:
 			"name": name,
 			"steps": [],
 			"run_status": "RUNNING",
+			"test_success": None,
 		}
 		ins = supabase.table('tests').insert(payload).execute()
 		row = (ins.data or [{}])[0]

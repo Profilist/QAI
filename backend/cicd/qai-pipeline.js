@@ -226,7 +226,7 @@ Generate focused test scenarios for autonomous agents.`
       if (this.resultId) {
         await this.supabase
           .from('results')
-          .update({ 'res-success': false })
+          .update({ 'run_status': 'FAILED' })
           .eq('id', this.resultId);
       }
       
@@ -239,8 +239,9 @@ Generate focused test scenarios for autonomous agents.`
       // First, create the results record (PR level)
       const prData = {
         'pr-link': `https://github.com/${this.repo.join('/')}/pull/${this.prNumber}`,
-        'pr-name': `PR #${this.prNumber}`,
-        'res-success': false // Will be updated after tests complete
+        'pr_name': `PR #${this.prNumber}`,
+        'overall_result': {},
+        'run_status': 'PENDING'
       };
 
       const { data: resultData, error: resultError } = await this.supabase
@@ -270,8 +271,7 @@ Generate focused test scenarios for autonomous agents.`
       for (const [persona, personaScenarios] of Object.entries(personaGroups)) {
         const suiteRecord = {
           result_id: this.resultId, // Foreign key to results table
-          name: `${persona} Agent Suite`,
-          'suites-success': null // Will be updated after tests
+          name: `${persona} Agent Suite`
         };
 
         const { data: suiteData, error: suiteError } = await this.supabase
@@ -291,8 +291,9 @@ Generate focused test scenarios for autonomous agents.`
         const testRecords = personaScenarios.map(scenario => ({
           suite_id: suiteData.id, // Foreign key to suites table
           name: scenario.description,
-          summary: `${scenario.type} test with ${scenario.priority} priority`,
-          'test-success': null
+          test_success: null,
+          run_status: 'PENDING',
+          steps: []
         }));
 
         const { error: testsError } = await this.supabase
@@ -317,8 +318,8 @@ Generate focused test scenarios for autonomous agents.`
         const { error } = await this.supabase
           .from('tests')
           .update({
-            'test-success': result.success,
-            summary: result.error || `Test completed in ${result.duration}ms`
+            'test_success': result.success,
+            'run_status': result.success ? 'PASSED' : 'FAILED'
           })
           .eq('name', result.scenario.description);
 
@@ -336,33 +337,33 @@ Generate focused test scenarios for autonomous agents.`
       for (const suite of suites || []) {
         const { data: suiteTests } = await this.supabase
           .from('tests')
-          .select('test-success')
+          .select('test_success')
           .eq('suite_id', suite.id);
 
-        const allTestsComplete = suiteTests?.every(test => test['test-success'] !== null);
-        const allTestsPassed = suiteTests?.every(test => test['test-success'] === true);
+        const allTestsComplete = suiteTests?.every(test => test.test_success !== null);
+        const allTestsPassed = suiteTests?.every(test => test.test_success === true);
 
-        if (allTestsComplete) {
-          await this.supabase
-            .from('suites')
-            .update({ 'suites-success': allTestsPassed })
-            .eq('id', suite.id);
-        }
+        // Note: suites table doesn't have success column in the provided schema
+        // Tests success will be tracked at the result level
       }
 
-      // Update overall PR result
-      const { data: allSuites } = await this.supabase
-        .from('suites')
-        .select('suites-success')
-        .eq('result_id', this.resultId);
+      // Update overall PR result based on all tests
+      const { data: allTests } = await this.supabase
+        .from('tests')
+        .select('test_success')
+        .in('suite_id', suites?.map(s => s.id) || []);
 
-      const allSuitesComplete = allSuites?.every(suite => suite['suites-success'] !== null);
-      const allSuitesPassed = allSuites?.every(suite => suite['suites-success'] === true);
+      const totalTests = allTests?.length || 0;
+      const passedTests = allTests?.filter(test => test.test_success === true).length || 0;
+      const allTestsPassed = totalTests > 0 && passedTests === totalTests;
 
-      if (allSuitesComplete) {
+      if (totalTests > 0) {
         await this.supabase
           .from('results')
-          .update({ 'res-success': allSuitesPassed })
+          .update({ 
+            'run_status': allTestsPassed ? 'PASSED' : 'FAILED',
+            'overall_result': { passed: passedTests, total: totalTests }
+          })
           .eq('id', this.resultId);
       }
 
@@ -436,17 +437,20 @@ Your goal is to identify bugs and issues that human testers might miss through a
       
       if (result) {
         const totalSuites = result.suites?.length || 0;
-        const passedSuites = result.suites?.filter(s => s['suites-success'] === true).length || 0;
         const totalTests = result.suites?.reduce((acc, s) => acc + (s.tests?.length || 0), 0) || 0;
         const passedTests = result.suites?.reduce((acc, s) => 
-          acc + (s.tests?.filter(t => t['test-success'] === true).length || 0), 0) || 0;
+          acc + (s.tests?.filter(t => t.test_success === true).length || 0), 0) || 0;
+        
+        // Calculate success based on run_status and test results
+        const overallSuccess = result.run_status === 'PASSED' || (passedTests === totalTests && totalTests > 0);
         
         console.log(`📊 Final Results Summary:`);
-        console.log(`   • Overall Success: ${result['res-success'] ? '✅' : '❌'}`);
-        console.log(`   • Suites: ${passedSuites}/${totalSuites} passed`);
+        console.log(`   • Overall Status: ${result.run_status}`);
+        console.log(`   • Overall Success: ${overallSuccess ? '✅' : '❌'}`);
+        console.log(`   • Suites: ${totalSuites} total`);
         console.log(`   • Tests: ${passedTests}/${totalTests} passed`);
         
-        return result['res-success'];
+        return overallSuccess;
       }
     } catch (error) {
       console.error(`❌ Failed to verify results: ${error.message}`);
