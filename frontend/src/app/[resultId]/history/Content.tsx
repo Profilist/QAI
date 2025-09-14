@@ -41,7 +41,7 @@ export default function Content({ testRuns }: { testRuns: TestRun[] }) {
       <List>
         {testRuns.map((testRun) => (
           <button
-            className="hover:cursor-pointer"
+            className="hover:cursor-pointer group"
             onClick={() => onTestRunClick(testRun)}
             key={testRun.id}
           >
@@ -58,7 +58,7 @@ export default function Content({ testRuns }: { testRuns: TestRun[] }) {
               )}
             >
               <div>
-                <h3 className="font-heading">
+                <h3 className="font-heading group-hover:underline">
                   {dateFormatter.format(testRun.timeStarted)}
                 </h3>
                 <p>
@@ -75,11 +75,6 @@ export default function Content({ testRuns }: { testRuns: TestRun[] }) {
           </button>
         ))}
       </List>
-      <div className="mb-6 flex flex-col gap-4">
-        {/* Video */}
-        <div className="card aspect-[4/3]"></div>
-        {/* Controls */}
-      </div>
     </div>
   );
 }

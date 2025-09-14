@@ -1,24 +1,27 @@
 "use client";
+
 import clsx from "clsx";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 
 export default function SideNavbar() {
   const pathname = usePathname();
+  const params = useParams<{ resultId: string }>();
 
   return (
-    <nav 
+    <nav
       className="flex flex-col gap-6 px-10 py-8 font-content h-full"
-      style={{ backgroundColor: 'var(--sidebar-bg)' }}
+      style={{ backgroundColor: "var(--sidebar-bg)" }}
     >
       {/* Logo */}
-        <span className="font-heading text-5xl">QAI</span>
-      
+      <span className="font-heading text-5xl">QAI</span>
+
       {/* Actions */}
       <ul className="flex flex-col gap-1.5">
         <li className="font-heading text-2xl">Actions</li>
         {actions.map((route, i) => (
           <RouteLink
+            prefix={params.resultId}
             route={route}
             key={i}
             active={isLinkActive(route, pathname)}
@@ -30,6 +33,7 @@ export default function SideNavbar() {
         <li className="font-heading text-2xl">Help</li>
         {help.map((route, i) => (
           <RouteLink
+            prefix={params.resultId}
             route={route}
             key={i}
             active={isLinkActive(route, pathname)}
@@ -43,7 +47,7 @@ export default function SideNavbar() {
 type Route = {
   text: string;
   href: string;
-}
+};
 
 const actions: Route[] = [
   { text: "Dashboard", href: "/dashboard" },
@@ -58,10 +62,20 @@ const help: Route[] = [
   { text: "Contact", href: "/contact" },
 ];
 
-function RouteLink({ route, active }: { route: Route; active: boolean }) {
+function RouteLink({
+  prefix,
+  route,
+  active,
+}: {
+  prefix: string;
+  route: Route;
+  active: boolean;
+}) {
   return (
     <li className={clsx("text-xl", active && "underline text-accent")}>
-      <a className="hover:underline" href={route.href}>{route.text}</a>
+      <a className="hover:underline" href={`/${prefix}${route.href}`}>
+        {route.text}
+      </a>
     </li>
   );
 }
