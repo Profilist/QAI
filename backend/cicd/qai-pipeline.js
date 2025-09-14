@@ -218,7 +218,6 @@ Generate focused test scenarios for autonomous agents.`
       const finalSuccess = await this.verifyFinalResults();
       
       console.log(`::set-output name=success::${finalSuccess}`);
-      const finalSuccess = await this.verifyFinalResults();
       return finalSuccess;
     } catch (error) {
       console.error(`❌ Agent execution failed: ${error.message}`);
