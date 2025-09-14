@@ -32,7 +32,7 @@ load_dotenv()
 async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
     print(f"SPEC: {spec}")
     # Setup CUA agent
-    model = spec.get("model") or os.getenv("CUA_MODEL", "claude-sonnet-4-20250514")
+    model = spec.get("model") or os.getenv("CUA_MODEL", "claude-opus-4-1-20250805") # claude-sonnet-4-20250514
     budget = spec.get("budget", 5.0)
     suite_id = spec.get("suite_id")
     

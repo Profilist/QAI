@@ -57,7 +57,13 @@ CHANGES: ${diff}
 
 Generate focused test scenarios for autonomous agents.
 
-For EACH scenario, also include a concise but rich summary (1-3 sentences) that gives the agent business context and the precise objective of the test. The summary should read like: "On <deployment url or app>, you are testing <feature or flow>; in this test, you <core action and intent> to validate <expected behavior/validation>".`
+Constraints and guidance:
+- Use at most 4 distinct test suites. Choose categories that best partition the behaviors changed by this PR (ex. Authentication, Navigation, New About Page, etc.).
+- For EACH suite, prefer 2–3 high-value tests when meaningful, ideally E2E tests that a human would miss (think edge cases, race conditions, etc.). Aim for a total of ~6–10 scenarios overall, balancing coverage and noise.
+- Do NOT create trivial or duplicative scenarios. Avoid superficial variations (e.g., same flow with only a color change). Deduplicate aggressively.
+- If there is truly only one meaningful area to test, produce at least 2 complementary tests for that same persona (e.g., happy path vs clear edge/error path) rather than only one total scenario.
+
+For EACH scenario, also include a concise but rich summary (1–3 sentences) that gives the agent context and the precise objective to carry out the test efficiently. The summary could read like: "On <deployment url>, you are testing <feature or flow>; in this test, you <core action and intent> to validate <expected behavior/validation>".`
       }],
       response_format: {
         type: "json_schema",
