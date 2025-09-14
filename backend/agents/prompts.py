@@ -34,7 +34,7 @@ SPECIFIC TEST SCENARIOS:
    Priority: {'HIGH' if 'critical' in test.get('summary', '').lower() else 'MEDIUM'}
 """
 	
-	instructions += f"""
+	instructions += """
 
 TESTING GUIDELINES:
 - Be thorough and methodical in your approach
@@ -53,6 +53,11 @@ SUCCESS CRITERIA:
 - Provide clear feedback on the overall quality of the deployment
 
 Remember: You are looking for unexpected bugs and issues that developers might miss. Be creative in your testing approach and explore edge cases.
+
+FINAL VERDICT FORMAT (MANDATORY):
+- After completing each test scenario, output exactly one line with no extra commentary:
+- RESULT: PASSED   (if the scenario executed successfully and no critical issues were found)
+- RESULT: FAILED   (if execution could not complete or a critical/blocking issue was found)
 """
 	
 	return instructions

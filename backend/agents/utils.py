@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime, timezone
 
 
@@ -12,23 +11,22 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def short_id() -> str:
-    return uuid.uuid4().hex[:8]
-
-
 def normalize_tests(spec: dict) -> list[dict]:
     tests = spec.get("tests")
+    
+    # Multiple tests
     if isinstance(tests, list) and tests:
         normalized = []
         for idx, t in enumerate(tests):
             name = t.get("name") or f"test-{idx+1}"
-            messages = t.get("instructions") or t.get("messages") or []
-            normalized.append({"name": name, "messages": messages})
+            instructions = t.get("instructions") or []
+            normalized.append({"name": name, "instructions": instructions})
         return normalized
-    # Fallback: single test using top-level instructions/messages
-    messages = spec.get("instructions") or spec.get("messages") or []
-    suite_name = spec.get("suite") or spec.get("suite_name") or "default"
-    return [{"name": str(suite_name), "messages": messages}]
+    
+    # Single test
+    instructions = spec.get("instructions") or []
+    suite_name = spec.get("suite_name") or "Standard"
+    return [{"name": str(suite_name), "instructions": instructions}]
 
 
 def make_remote_recording_dir(suite_id: str, test_name: str) -> str:

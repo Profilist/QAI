@@ -3,7 +3,7 @@ from computer import Computer
 import os
 import json
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 from enum import Enum
 
@@ -121,6 +121,20 @@ async def run_single_agent(spec: Dict[str, Any]) -> Dict[str, Any]:
                             if test_id is not None:
                                 step_payload = _prepare_step_for_storage(item)
                                 await append_test_step(test_id, step_payload)
+                            # Parse explicit verdict from agent message content
+                            try:
+                                if isinstance(item, dict) and item.get("type") == "message":
+                                    content = item.get("content") or []
+                                    for block in content:
+                                        text = block.get("text") if isinstance(block, dict) else None
+                                        if isinstance(text, str):
+                                            cleaned = text.strip().upper()
+                                            if cleaned.endswith("RESULT: PASSED") or cleaned == "RESULT: PASSED":
+                                                test_run_status = RunStatus.PASSED
+                                            elif cleaned.endswith("RESULT: FAILED") or cleaned == "RESULT: FAILED":
+                                                test_run_status = RunStatus.FAILED
+                            except Exception:
+                                pass
                 except Exception as e:
                     test_run_status = RunStatus.FAILED
                     print(f"[Agent {suite_id}] test {test_name} failed: {e}")
