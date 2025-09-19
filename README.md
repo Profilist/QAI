@@ -1,15 +1,19 @@
-# QAI
+# QAI (Hack the North 2025 Submission)
+> Autonomous agentic QA system that integrates with CI to analyze PRs, generate test suites, and execute them with computer-use agents.
 
-QAI is an autonomous QA system that analyzes pull requests, generates focused test suites, executes them with computer-use agents, records evidence, and updates a central results database. It integrates with CI to provide end-to-end verification for web applications.
+<img width="1440" height="900" alt="qai-zeta vercel app_(MacBook Air)" src="https://github.com/user-attachments/assets/07db2968-f7ab-487d-935c-be5835bce1cf" />
+<img width="1440" height="900" alt="qai-zeta vercel app_(MacBook Air) (1)" src="https://github.com/user-attachments/assets/6bcfb3d1-9f8d-44da-beb6-3c3f150da52c" />
+<img width="1440" height="900" alt="qai-zeta vercel app_1000_test-suites_68(MacBook Air)" src="https://github.com/user-attachments/assets/82dcbc8e-a322-4e1f-b494-609dc9c4052c" />
 
-## Highlights
-- PR → Tests automatically: Uses LLMs to analyze changes and synthesize suites and tests with rich context summaries
-- Multi-suite execution: Up to 4 suites run concurrently on pre-configured agent containers
-- Evidence and traceability: Video recordings and condensed step logs; DB reflects per-test and overall results
+
+## How It Works
+- PR → Tests automatically: Submitting a PR triggers a pipeline that uses LLMs to analyze changes and synthesize suites (ex. personas like seniors, or categories like authentication) and tests that are often missed by humans (ex. edge cases, race conditions)
+- Multi-suite execution: Up to 4 suites run concurrently on pre-configured VMs that computer-use agents can navigate via Cua
+- Evidence and traceability: Video recordings and condensed step logs for each test to facilitate bug reproduction and fixes
 - API-driven: FastAPI service to run single suites or full results; simple to integrate with any CI provider
 
 ## System Flow
-1. CI calls the pipeline (`backend/cicd/qai-pipeline.js`) for the PR
+1. CI calls the pipeline for the PR
 2. Pipeline analyzes PR diff + codebase summary to generate scenarios
 3. Scenarios are saved to Supabase as:
    - `results` (one per PR)
@@ -22,16 +26,15 @@ QAI is an autonomous QA system that analyzes pull requests, generates focused te
 ## Repository Structure
 ```
 backend/
-  agents/            # FastAPI service, agent runner, Supabase integration
-  cicd/              # PR analysis + CI pipeline scripts
+  agents/            # FastAPI service, agent runner, DB integration
+  cicd/              # CI pipeline scripts
   tests/             # Python tests
-  artifacts/         # Local run artifacts (videos, logs) mirrored by pipeline
-frontend/            # Next.js dashboard (optional viewer)
+frontend/            # Next.js dashboard
 API.md               # Detailed API and DB schema
 README.md            # This file
 ```
 
-### Key Back-End Components
+### Backend References
 - `backend/agents/main.py`: FastAPI with endpoints
   - `GET /health`
   - `POST /run-suite` (single suite by `suite_id`)
@@ -50,23 +53,22 @@ README.md            # This file
 ## Requirements
 - Python 3.11+
 - Node.js 18+
-- Supabase project (or compatible PostgREST + storage)
+- Supabase project 
 - OpenAI API key
 - Agent compute provider (CUA) credentials
-- AWS S3 bucket (optional, for video uploads)
+- AWS S3 bucket
 
 ## Environment Variables
 Create a `.env` in the repo root (consumed by both backend and cicd):
 
-Backend (FastAPI/agents):
+Backend:
 - `SUPABASE_URL` / `SUPABASE_KEY`
 - `CUA_API_KEY` (agent provider API key)
 - `CUA_MODEL` (e.g., `anthropic/claude-3-5-sonnet-20241022`)
 - `CUA_CONTAINER_1`..`CUA_CONTAINER_4` (names/ids of up to 4 agent containers)
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME` (optional, recording uploads)
-- `PORT` (FastAPI port, default 8000)
 
-Pipeline (CI) and shared:
+Pipeline (CI):
 - `OPENAI_API_KEY`
 - `GITHUB_TOKEN`
 - `GITHUB_REPOSITORY`, `GITHUB_EVENT_PATH` (GitHub Actions)
@@ -108,8 +110,6 @@ node qai-pipeline.js analyze
 node qai-pipeline.js test
 ```
 
-Artifacts are mirrored to `backend/artifacts/agent/<runId>` including generated scenarios, options, API responses, and verification summaries.
-
 ## Running Only Agents for Existing Suites
 If suites/tests have already been created in Supabase (e.g., via the pipeline), you can run them by `result_id`:
 ```
@@ -118,44 +118,10 @@ curl -X POST "$QAI_ENDPOINT/run-result" \
   -d '{"result_id": 123}'
 ```
 
-## Frontend (Optional Dashboard)
+## Frontend Dashboard
 ```
 cd frontend
 npm ci
 npm run dev
 # open http://localhost:3000
 ```
-
-## Testing
-```
-cd backend
-pytest
-```
-
-## Conventions
-- Suites are capped to 4 (mapped to `CUA_CONTAINER_1..4`)
-- Prefer 2–3 high-value tests per suite; avoid trivial/duplicate cases
-- Test `summary` is the primary instruction for the agent; database adapters convert it to agent-ready format
-
-## Troubleshooting
-- API 500 on /run-result
-  - Ensure `SUPABASE_URL/KEY`, `CUA_API_KEY`, and at least one `CUA_CONTAINER_*` are set
-  - Check FastAPI logs and Supabase table names/columns (see API.md)
-- Pipeline cannot connect to API
-  - Verify `QAI_ENDPOINT` and local port; allowlist in CORS
-- No suites created
-  - OpenAI generation may have produced 0 suites; check `backend/cicd/test-scenarios.json`
-- Videos not uploaded
-  - Validate AWS credentials and `S3_BUCKET_NAME`
-
-## Security & Data
-- Secrets are read from `.env` at runtime (do not commit)
-- Test artifacts can include sensitive UI states; configure S3 access policies accordingly
-
-## Roadmap
-- Retry/auto-heal for flaky steps
-- Adaptive test generation from historical failures
-- Richer dashboard for real-time run monitoring
-
-## License
-MIT (or your preferred license)
