@@ -84,6 +84,14 @@ export default function Page() {
     Array(extendedTestSuite?.tests.length ?? 0).fill(false)
   );
   const showPlayer = useMemo(() => openTests.some(Boolean), [openTests]);
+  const selectedVideoSrc = useMemo(() => {
+    const idx = openTests.findIndex((v) => v);
+    if (idx === -1) return undefined;
+    const url = extendedTestSuite?.tests?.[idx]?.s3_link;
+    if (!url || typeof url !== "string") return undefined;
+    console.log(url)
+    return url;
+  }, [openTests, extendedTestSuite]);
 
   useEffect(() => {
     setControlType("video");
@@ -155,8 +163,8 @@ export default function Page() {
           <div className="mb-6 flex flex-col gap-4">
             {/* Video */}
             <div className="card aspect-[4/3] rounded-xl overflow-hidden">
-              {controlType === "video" && (
-                <VideoPlayer src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+              {controlType === "video" && selectedVideoSrc && (
+                <VideoPlayer src={selectedVideoSrc} />
               )}
             </div>
             {/* Other */}
